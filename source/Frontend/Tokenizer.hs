@@ -36,7 +36,7 @@ tokenTr = msum
 		    in mplus escaped Tr.head `Tr.before` char '\''
 	] where
 		char c = mfilter (==c) Tr.head
-		str cs = foldr (liftM2 (:)) (return []) (map char cs)
+        str = mapM char
 		mangle cs = maybe [Name cs] id (lookup cs keywords)
 		keywords =
 			[ ("var", [KwVar])
