@@ -79,7 +79,7 @@ sepl f elemTr opTr =
 	let next a = (opTr <*> return a <*> elemTr >>= next) `mplus` return a
 	in f <$> elemTr >>= next
 
-primTr = msum [callTr Call, accessTr, numberTr, quoteTr]
+primTr = msum [callTr Call, accessTr, numberTr, quoteTr, enclosedTr]
 
 callTr :: (Name -> [Expression] -> a) -> Tr.Tr [T.Token] Maybe a
 callTr f = do
@@ -106,6 +106,12 @@ numberTr = Tr.head >>= \case
 quoteTr = Tr.head >>= \case
 	T.Quote cs -> return $ Quote cs
 	_ -> mzero
+
+enclosedTr = do
+	expect T.LParen
+	expr <- expressionTr
+	expect T.RParen
+	return (Enclosed expr)
 
 nameTr :: Tr.Tr [T.Token] Maybe Name
 nameTr = Tr.head >>= \case

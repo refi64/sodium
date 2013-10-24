@@ -102,8 +102,8 @@ transformTerm :: VarStates -> S.Term -> D.Expression
 transformTerm varStates = \case
 	S.Term prim -> transformPrim varStates prim
 	S.TermMultiply term prim -> D.Binary "*"
-		(transformPrim varStates prim)
 		(transformTerm varStates term)
+		(transformPrim varStates prim)
 
 transformPrim :: VarStates -> S.Prim -> D.Expression
 transformPrim varStates = \case
@@ -112,6 +112,7 @@ transformPrim varStates = \case
 	S.Access name -> case M.lookup name varStates of
 		Nothing -> error "TODO: Maybe monad to handle errors (PRIM)"
 		Just (VarState t i) -> D.Access (unvzName name i)
+	S.Enclosed expr -> transformExpr varStates expr
 
 returnUnitStatement :: D.Expression
 returnUnitStatement = D.Beta (D.Access "return") (D.Tuple [])

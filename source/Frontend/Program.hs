@@ -51,6 +51,7 @@ data Prim
 	| Call Name [Expression]
 	| Number String
 	| Quote String
+	| Enclosed Expression
 	deriving (Show)
 
 data PasType
