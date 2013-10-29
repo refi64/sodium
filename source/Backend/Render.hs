@@ -5,17 +5,22 @@ module Backend.Render
 	) where
 
 import Data.List (intersperse)
+import qualified Text.PrettyPrint as P
 import Backend.Program
 
-roundBrace = ("("++) . (++")")
+vsep = foldr (P.$+$) P.empty
 
 render :: Program -> String
-render (Program defs) = unlines $ map renderDef defs
+render (Program defs)
+	= P.render
+	$ vsep
+	$ map renderDef
+	$ defs
 
 renderDef (ValueDef name expr)
-	= unwords
+	= P.hsep
 	[ renderName name
-	, "="
+	, P.text "="
 	, renderExpression expr
 	]
 
@@ -23,54 +28,54 @@ renderExpression (Access name)
 	= renderName name
 
 renderExpression (Lambda names expr)
-	= roundBrace
-	$ unwords
-	[ concat 
-		["\\"
-		, unwords $ map renderName names
+	= P.parens
+	$ P.hsep
+	[ P.hcat
+		[P.text "\\"
+		, P.hsep $ map renderName names
 		]
-	, "->"
+	, P.text "->"
 	, renderExpression expr
 	]
 
 renderExpression (Beta expr1 expr2)
-	= roundBrace
-	$ unwords
+	= P.parens
+	$ P.hsep
 	$ map renderExpression
 	$ [expr1, expr2]
 
 renderExpression (Binary op expr1 expr2)
-	= roundBrace
-	$ unwords
+	= P.parens
+	$ P.hsep
 	[ renderExpression expr1
 	, renderName op
 	, renderExpression expr2
 	]
 
 renderExpression (Tuple exprs)
-	= roundBrace
-	$ concat
-	$ intersperse ","
+	= P.parens
+	$ P.hsep
+	$ P.punctuate P.comma
 	$ map renderExpression
 	$ exprs
 
 renderExpression (Typed expr t)
-	= roundBrace
-	$ unwords
+	= P.parens
+	$ P.hsep
 	[ renderExpression expr
-	, "::"
+	, P.text "::"
 	, renderType t
 	]
 
 renderExpression (Quote cs)
-	= show cs
+	= P.text (show cs)
 
 renderExpression (Number cs)
-	= cs
+	= P.text cs
 
-renderName cs
-	= cs
+renderName
+	= P.text
 
 renderType = \case
-	HsInteger -> "Integer"
-	HsIO t -> unwords ["IO", renderType t]
+	HsInteger -> P.text "Integer"
+	HsIO t -> P.hsep [P.text "IO", renderType t]
