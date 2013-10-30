@@ -3,6 +3,7 @@ module Backend.Program
 	, Program(..)
 	, Def(..)
 	, Expression(..)
+	, DoStatement(..)
 	, HsType(..)
 	) where
 
@@ -34,4 +35,11 @@ data Expression
 	| Quote String
 	| Number String
 	| Typed Expression HsType
+	| DoExpression [DoStatement]
+	deriving (Show)
+
+data DoStatement
+	= DoBind Name Expression
+	| DoLet  Name Expression
+	| DoExecute Expression
 	deriving (Show)

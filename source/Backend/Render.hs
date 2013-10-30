@@ -67,6 +67,10 @@ renderExpression (Typed expr t)
 	, renderType t
 	]
 
+renderExpression (DoExpression statements)
+	= P.parens
+	$ P.text "do" P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
+
 renderExpression (Quote cs)
 	= P.text (show cs)
 
@@ -79,3 +83,21 @@ renderName
 renderType = \case
 	HsInteger -> P.text "Integer"
 	HsIO t -> P.hsep [P.text "IO", renderType t]
+
+renderStatement (DoBind name expr)
+	= P.hsep
+	[ renderName name
+	, P.text "<-"
+	, renderExpression expr
+	]
+
+renderStatement (DoLet name expr)
+	= P.hsep
+	[ P.text "let"
+	, renderName name
+	, P.text "="
+	, renderExpression expr
+	]
+
+renderStatement (DoExecute expr)
+	= renderExpression expr

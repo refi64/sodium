@@ -4,7 +4,7 @@ module Backend.Transform
 	( transform
 	) where
 
-import Data.List (genericReplicate)
+import Data.List (genericReplicate, mapAccumL)
 import qualified Data.Map as M
 -- S for Src, D for Dest
 import qualified Frontend.Program as S
@@ -21,7 +21,7 @@ transformVars :: Maybe S.Vars -> VarStates
 transformVars Nothing = M.empty
 transformVars (Just (S.Vars vardecls))
 	= M.fromList $ flip map vardecls $ \(S.VarDecl name pasType) ->
-		(transformName name, VarState (transformType pasType) 0)
+		(transformName name, VarState (transformType pasType) (-1))
 
 transformName :: S.Name -> D.Name
 transformName = id
@@ -36,36 +36,38 @@ transformType = \case
 
 transformBody :: VarStates -> S.Body -> D.Expression
 transformBody varStates (S.Body statements)
-	= fst $ transformStatements varStates statements
+	= transformStatements varStates statements
 
-transformStatements :: VarStates -> [S.Statement] -> (D.Expression, VarStates)
-transformStatements varStates
-	= foldr (flip transformStatement) (returnUnitStatement, varStates)
+transformStatements :: VarStates -> [S.Statement] -> D.Expression
+transformStatements varStates statements
+	= D.DoExpression
+	$ (++ [D.DoExecute returnUnitStatement])
+	$ snd
+	$ mapAccumL transformStatement varStates statements
 
-transformStatement :: (D.Expression, VarStates) -> S.Statement -> (D.Expression, VarStates)
-transformStatement (nextExpr, varStates) = \case
+transformStatement :: VarStates -> S.Statement -> (VarStates, D.DoStatement)
+transformStatement varStates = \case
 	S.Execute "readln" [S.Expression (S.Term (S.Access name))] ->
 		case M.lookup name varStates of
 			Nothing -> error "TODO: Maybe monad to handle errors (READLN)"
-			Just (VarState t i) ->
-				(D.Binary ">>="
-					(D.Typed (beta [D.Access "fmap", D.Access "read", D.Access "getLine"]) (D.HsIO t))
-					(D.Lambda [unvzName name i] nextExpr)
-				, M.insert name (VarState t (succ i)) varStates
+			Just (VarState t i) -> let j = succ i in
+				( M.insert name (VarState t j) varStates
+				, D.DoBind
+					(unvzName name j)
+					(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO t)
 				)
 	S.Execute name exprs ->
-		( D.Binary ">>" (transformExecute varStates name exprs) nextExpr
-		, varStates
+		( varStates
+		, D.DoExecute $ transformExecute varStates name exprs
 		)
 	S.Assign name expr ->
 		case M.lookup name varStates of
 			Nothing -> error "TODO: Maybe monad to handle errors (ASSIGN)"
-			Just (VarState t i) ->
-				let varStates' = M.insert name (VarState t (succ i)) varStates in
-				(D.Binary ">>="
-					(D.Beta (D.Access "return") (transformExpr varStates' expr))
-					(D.Lambda [unvzName name i] nextExpr)
-				, varStates'
+			Just (VarState t i) -> let j = succ i in
+				( M.insert name (VarState t j) varStates
+				, D.DoLet
+					(unvzName name j)
+					(transformExpr varStates expr)
 				)
 
 transformExecute :: VarStates -> S.Name -> [S.Expression] -> D.Expression
@@ -81,12 +83,14 @@ transformExecute varStates = \case
 beta = foldl1 D.Beta
 
 unvzName name i = name ++ genericReplicate i '\''
+unvzTable = M.fromList . map f . M.toList where
+	f (name, VarState t i) = (unvzName name i, t)
 
 showNoString :: VarStates -> D.Expression -> D.Expression
 showNoString varStates = \case
-	D.Access name -> case M.lookup name varStates of
+	D.Access name -> case M.lookup name (unvzTable varStates) of
 		Nothing -> undefined
-		Just (VarState t i) -> case t of
+		Just t -> case t of
 			D.HsString -> D.Access name
 			_ -> D.Beta (D.Access "show") (D.Access name)
 	a -> a -- TODO: bypass any D.Expression to transform underlying D.Access
