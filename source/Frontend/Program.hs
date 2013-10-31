@@ -5,8 +5,7 @@ module Frontend.Program
 	, VarDecl(..)
 	, Statement(..)
 	, Expression(..)
-	, Term(..)
-	, Prim(..)
+	, Operator(..)
 	, Name
 	, PasType(..)
 	) where
@@ -14,7 +13,7 @@ module Frontend.Program
 type Name = String
 
 data Program
-	= Program (Maybe Vars) Body
+	= Program Vars Body
 	deriving (Show)
 
 data Vars
@@ -36,23 +35,18 @@ data Statement
 	deriving (Show)
 
 data Expression
-	= Expression Term
-	| ExpressionAdd Term Expression
-	| ExpressionSubtract Term Expression
-	deriving (Show)
-
-data Term
-	= Term Prim
-	| TermMultiply Term Prim
-	| TermDivide Term Prim
-	deriving (Show)
-
-data Prim
 	= Access Name
 	| Call Name [Expression]
 	| Number String
 	| Quote String
-	| Enclosed Expression
+	| Binary Operator Expression Expression
+	deriving (Show)
+
+data Operator
+	= OpAdd
+	| OpSubtract
+	| OpMultiply
+	| OpDivide
 	deriving (Show)
 
 data PasType

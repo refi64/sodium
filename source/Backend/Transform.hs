@@ -19,9 +19,8 @@ transform (S.Program vars body) = do
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState
 
-transformVars :: Maybe S.Vars -> VarStates
-transformVars Nothing = M.empty
-transformVars (Just (S.Vars vardecls))
+transformVars :: S.Vars -> VarStates
+transformVars (S.Vars vardecls)
 	= M.fromList $ flip map vardecls $ \(S.VarDecl name pasType) ->
 		(transformName name, VarState (transformType pasType) (-1))
 
@@ -48,7 +47,7 @@ transformBody varStates mName (S.Body statements) = do
 
 transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> Maybe (VarStates, [D.DoStatement])
 transformStatement (varStates, modStatements) = \case
-	S.Execute "readln" [S.Expression (S.Term (S.Access name))] -> do
+	S.Execute "readln" [S.Access name] -> do
 		VarState t i <- M.lookup name varStates
 		let j = succ i
 		let varStates' = M.insert name (VarState t j) varStates
@@ -110,7 +109,7 @@ showNoString varStates = \case
 			D.HsString -> D.Access name
 			_ -> D.Beta (D.Access "show") (D.Access name)
 	a -> a -- TODO: bypass any D.Expression to transform underlying D.Access
-
+{-
 transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
 transformExpr varStates = \case
 	S.Expression term -> transformTerm varStates term
@@ -118,6 +117,10 @@ transformExpr varStates = \case
 		x <- transformTerm varStates term
 		y <- transformExpr varStates expr
 		return $ D.Binary "+" x y
+	S.ExpressionSubtract term expr -> do
+		x <- transformTerm varStates term
+		y <- transformExpr varStates expr
+		return $ D.Binary "-" x y
 
 transformTerm :: VarStates -> S.Term -> Maybe D.Expression
 transformTerm varStates = \case
@@ -126,15 +129,30 @@ transformTerm varStates = \case
 		x <- transformTerm varStates term
 		y <- transformPrim varStates prim
 		return $ D.Binary "*" x y
-
-transformPrim :: VarStates -> S.Prim -> Maybe D.Expression
-transformPrim varStates = \case
+	S.TermDivide term prim -> do
+		x <- transformTerm varStates term
+		y <- transformPrim varStates prim
+		return $ D.Binary "/" x y
+-}
+transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
+transformExpr varStates = \case
 	S.Quote cs -> return $ D.Quote cs
 	S.Number cs -> return $ D.Number cs
 	S.Access name -> do
 		VarState t i <- M.lookup name varStates
 		return $ D.Access (unvzName name i)
-	S.Enclosed expr -> transformExpr varStates expr
+	S.Call name exprs -> do
+		modExprs <- mapM (transformExpr varStates) exprs
+		return $ beta (D.Access name : modExprs)
+	S.Binary op x y -> do
+		modX <- transformExpr varStates x
+		modY <- transformExpr varStates y
+		modOp <- case op of
+			S.OpAdd -> return "+"
+			S.OpSubtract -> return "-"
+			S.OpMultiply -> return "*"
+			S.OpDivide -> return "/"
+		return $ D.Binary modOp modX modY
 
 returnUnitStatement :: D.Expression
 returnUnitStatement = D.Beta (D.Access "return") (D.Tuple [])

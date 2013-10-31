@@ -16,7 +16,7 @@ builder = Tr.trap (const <$> programTr) $ Tr.Trap (guard . isDot) where
 	isDot (T.Dot:_) = True
 	isDot _ = False
 
-programTr = Program <$> optional varsTr <*> bodyTr
+programTr = Program <$> msum [varsTr, return (Vars [])] <*> bodyTr
 
 expect a = mfilter (==a) Tr.head
 
@@ -26,13 +26,12 @@ varsTr = do
 
 varDeclTr = VarDecl <$> nameTr <* expect T.Colon <*> typeTr <* expect T.Semicolon
 
-typeTr = Tr.head >>= \case
-	T.Name "integer" -> return PasInteger
-	T.Name "real" -> return PasReal
-	T.Name "boolean" -> return PasBoolean
-	T.Name "string" -> return PasString
-	T.Name cs -> return $ PasType cs
-	_ -> mzero
+typeTr = nameTr >>= \case
+	"integer" -> return PasInteger
+	"real" -> return PasReal
+	"boolean" -> return PasBoolean
+	"string" -> return PasString
+	cs -> return $ PasType cs
 
 bodyTr = do
 	expect T.KwBegin
@@ -73,26 +72,26 @@ forCycleTr = do
 	body <- bodyTr
 	return $ ForCycle names name exprFrom exprTo body
 
-expressionTr = sepr Expression termTr $
+expressionTr = sepr termTr $
 	Tr.head >>= \case
-		T.Plus -> return ExpressionAdd
-		T.Minus -> return ExpressionSubtract
+		T.Plus -> return (Binary OpAdd)
+		T.Minus -> return (Binary OpSubtract)
 		_ -> mzero
 
-termTr = sepl Term primTr $
+termTr = sepl primTr $
 	Tr.head >>= \case
-		T.Asterisk -> return TermMultiply
-		T.Slash -> return TermDivide
+		T.Asterisk -> return (Binary OpMultiply)
+		T.Slash -> return (Binary OpDivide)
 		_ -> mzero
 
-sepr f elemTr opTr = tr where
+sepr elemTr opTr = tr where
 	tr = do
 		elem <- elemTr
-		(opTr <*> return elem <*> tr) `mplus` (f <$> return elem)
+		(opTr <*> return elem <*> tr) `mplus` return elem
 
-sepl f elemTr opTr =
+sepl elemTr opTr =
 	let next a = (opTr <*> return a <*> elemTr >>= next) `mplus` return a
-	in f <$> elemTr >>= next
+	in elemTr >>= next
 
 primTr = msum [callTr Call, accessTr, numberTr, quoteTr, enclosedTr]
 
@@ -126,7 +125,7 @@ enclosedTr = do
 	expect T.LParen
 	expr <- expressionTr
 	expect T.RParen
-	return (Enclosed expr)
+	return expr
 
 nameTr :: Tr.Tr [T.Token] Maybe Name
 nameTr = Tr.head >>= \case
