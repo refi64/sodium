@@ -14,7 +14,7 @@ main = do
 		[filename1, filename2]
 			->  readFile filename1
 			>>= process
-			>>=	writeFile filename2
+			>>= writeFile filename2
 		_ -> putStrLn "usage: sodium filename.pas filename.hs"
 
 process source = do
@@ -22,7 +22,7 @@ process source = do
 	print tokens
 	let parsetree = tokens >>= parse
 	print parsetree
-	let modtree = transform <$> parsetree
+	let modtree = parsetree >>= transform
 	print modtree
 	let dest = render <$> modtree
 	print dest
