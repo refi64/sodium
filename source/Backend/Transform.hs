@@ -48,29 +48,25 @@ transformStatements varStates statements = do
 
 transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> Maybe (VarStates, [D.DoStatement])
 transformStatement (varStates, modStatements) = \case
-	S.Execute "readln" [S.Expression (S.Term (S.Access name))] ->
-		case M.lookup name varStates of
-			Nothing -> Nothing
-			Just (VarState t i) -> do
-				let j = succ i
-				let varStates' = M.insert name (VarState t j) varStates
-				let modStatement = D.DoBind
-					(unvzName name j)
-					(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO t)
-				Just (varStates', modStatement:modStatements)
+	S.Execute "readln" [S.Expression (S.Term (S.Access name))] -> do
+		VarState t i <- M.lookup name varStates
+		let j = succ i
+		let varStates' = M.insert name (VarState t j) varStates
+		let modStatement = D.DoBind
+			(unvzName name j)
+			(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO t)
+		return (varStates', modStatement:modStatements)
 	S.Execute name exprs -> do
 		modExpr <- transformExecute varStates name exprs
 		let modStatement = D.DoExecute modExpr
-		Just (varStates, modStatement:modStatements)
-	S.Assign name expr ->
-		case M.lookup name varStates of
-			Nothing -> Nothing
-			Just (VarState t i) -> do
-				let j = succ i
-				let varStates' = M.insert name (VarState t j) varStates
-				modExpr <- transformExpr varStates expr
-				let modStatement = D.DoLet (unvzName name j) modExpr
-				Just (varStates', modStatement:modStatements)
+		return (varStates, modStatement:modStatements)
+	S.Assign name expr -> do
+		VarState t i <- M.lookup name varStates
+		let j = succ i
+		let varStates' = M.insert name (VarState t j) varStates
+		modExpr <- transformExpr varStates expr
+		let modStatement = D.DoLet (unvzName name j) modExpr
+		return (varStates', modStatement:modStatements)
 
 transformExecute :: VarStates -> S.Name -> [S.Expression] -> Maybe D.Expression
 transformExecute varStates = \case
@@ -117,11 +113,11 @@ transformTerm varStates = \case
 
 transformPrim :: VarStates -> S.Prim -> Maybe D.Expression
 transformPrim varStates = \case
-	S.Quote cs -> Just $ D.Quote cs
-	S.Number cs -> Just $ D.Number cs
-	S.Access name -> case M.lookup name varStates of
-		Nothing -> Nothing
-		Just (VarState t i) -> Just $ D.Access (unvzName name i)
+	S.Quote cs -> return $ D.Quote cs
+	S.Number cs -> return $ D.Number cs
+	S.Access name -> do
+		VarState t i <- M.lookup name varStates
+		return $ D.Access (unvzName name i)
 	S.Enclosed expr -> transformExpr varStates expr
 
 returnUnitStatement :: D.Expression
