@@ -15,6 +15,11 @@ gather = Tr.trap (const <$> concat <$> many tokenTr) $ Tr.Trap (guard . null)
 tokenTr :: Tr.Tr String Maybe [Token]
 tokenTr = msum
 	[ [] <$ mfilter C.isSpace Tr.head
+	, [SodiumSpecial]
+		<$ char '{'
+		<* many (mfilter C.isSpace Tr.head)
+		<* str "#SODIUM"
+	, [RBrace] <$ char '}'
 	, [LParen] <$ char '('
 	, [RParen] <$ char ')'
 	, [Dot] <$ char '.'
@@ -42,4 +47,7 @@ tokenTr = msum
 			[ ("var", [KwVar])
 			, ("begin", [KwBegin])
 			, ("end", [KwEnd])
+			, ("for", [KwFor])
+			, ("to", [KwTo])
+			, ("do", [KwDo])
 			]

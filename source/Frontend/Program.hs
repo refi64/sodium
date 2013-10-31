@@ -32,6 +32,7 @@ data VarDecl
 data Statement
 	= Assign Name Expression
 	| Execute Name [Expression]
+	| ForCycle [Name] Name Expression Expression Body
 	deriving (Show)
 
 data Expression

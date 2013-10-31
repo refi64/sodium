@@ -71,6 +71,14 @@ renderExpression (DoExpression statements)
 	= P.parens
 	$ P.text "do" P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
 
+renderExpression (Range exprFrom exprTo)
+	= P.brackets
+	$ P.hcat
+	[ renderExpression exprFrom
+	, P.text ".."
+	, renderExpression exprTo
+	]
+
 renderExpression (Quote cs)
 	= P.text (show cs)
 

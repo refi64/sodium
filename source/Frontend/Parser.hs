@@ -36,14 +36,14 @@ typeTr = Tr.head >>= \case
 
 bodyTr = do
 	expect T.KwBegin
-	Body . fst <$> Tr.until
+	Body . fst <$> Tr.before
 		statementTr
 		(expect T.KwEnd)
 
 statementTr
 	= msum
 	$ map (<* expect T.Semicolon)
-	[assignTr, executeTr]
+	[assignTr, executeTr, forCycleTr]
 
 assignTr = do
 	cs <- nameTr
@@ -57,6 +57,21 @@ executeTr = msum
 		name <- nameTr
 		return $ Execute name []
 	]
+
+forCycleTr = do
+	expect T.SodiumSpecial
+	names <- fst <$> Tr.before
+		nameTr
+		(expect T.RBrace)
+	expect T.KwFor
+	name <- nameTr
+	expect T.Assign
+	exprFrom <- expressionTr
+	expect T.KwTo
+	exprTo <- expressionTr
+	expect T.KwDo
+	body <- bodyTr
+	return $ ForCycle names name exprFrom exprTo body
 
 expressionTr = sepr Expression termTr $
 	Tr.head >>= \case

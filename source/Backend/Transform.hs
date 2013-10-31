@@ -13,7 +13,7 @@ import qualified  Backend.Program as D
 
 transform :: S.Program -> Maybe D.Program
 transform (S.Program vars body) = do
-	modBody <- transformBody (transformVars vars) body
+	modBody <- transformBody (transformVars vars) Nothing body
 	return $ D.Program [D.ValueDef "main" modBody]
 
 data VarState = VarState D.HsType Integer
@@ -36,15 +36,15 @@ transformType = \case
 	S.PasString -> D.HsString
 	(S.PasType name) -> D.HsType (transformName name)
 
-transformBody :: VarStates -> S.Body -> Maybe D.Expression
-transformBody varStates (S.Body statements)
-	= transformStatements varStates statements
-
-transformStatements :: VarStates -> [S.Statement] -> Maybe D.Expression
-transformStatements varStates statements = do
+transformBody :: VarStates -> Maybe D.Name -> S.Body -> Maybe D.Expression
+transformBody varStates mName (S.Body statements) = do
 	(varStates', modStatements) <- foldM transformStatement (varStates, []) statements
-	let modStatements' = D.DoExecute returnUnitStatement : modStatements
-	return $ D.DoExpression (reverse modStatements')
+	modStatement <- case mName of
+		Nothing -> return $ D.DoExecute returnUnitStatement
+		Just name -> do
+			VarState t i <- M.lookup name varStates'
+			return $ D.DoExecute (beta [D.Access "return", D.Access (unvzName name i)])
+	return $ D.DoExpression (reverse (modStatement:modStatements))
 
 transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> Maybe (VarStates, [D.DoStatement])
 transformStatement (varStates, modStatements) = \case
@@ -66,6 +66,22 @@ transformStatement (varStates, modStatements) = \case
 		let varStates' = M.insert name (VarState t j) varStates
 		modExpr <- transformExpr varStates expr
 		let modStatement = D.DoLet (unvzName name j) modExpr
+		return (varStates', modStatement:modStatements)
+	S.ForCycle [accName] iterName exprFrom exprTo body -> do
+		VarState t i <- M.lookup accName varStates
+		let j = succ i
+		let varStates' = M.insert accName (VarState t j) varStates
+		modExprFrom <- transformExpr varStates exprFrom
+		modExprTo <- transformExpr varStates exprTo
+		let modRange = D.Range modExprFrom modExprTo
+		let varStates''
+			= M.insert accName (VarState t 0)
+			$ M.insert iterName (VarState D.HsInteger 0)
+			$ varStates
+		modBody <- transformBody varStates'' (Just accName) body --varStates'' (two primes)
+		let modStatement = D.DoBind
+			(unvzName accName j)
+			(beta [D.Access "foldM", D.Lambda [accName, iterName] modBody, D.Access accName, modRange])
 		return (varStates', modStatement:modStatements)
 
 transformExecute :: VarStates -> S.Name -> [S.Expression] -> Maybe D.Expression

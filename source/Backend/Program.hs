@@ -36,6 +36,7 @@ data Expression
 	| Number String
 	| Typed Expression HsType
 	| DoExpression [DoStatement]
+	| Range Expression Expression
 	deriving (Show)
 
 data DoStatement

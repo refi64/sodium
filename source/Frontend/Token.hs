@@ -4,6 +4,9 @@ data Token
 	= KwVar
 	| KwBegin
 	| KwEnd
+	| KwFor
+	| KwTo
+	| KwDo
 	| LParen
 	| RParen
 	| Semicolon
@@ -18,4 +21,6 @@ data Token
 	| Name String
 	| Number String
 	| Quote String
+	| SodiumSpecial
+	| RBrace
 	deriving (Eq, Show)
