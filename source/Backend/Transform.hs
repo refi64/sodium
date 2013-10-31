@@ -14,7 +14,7 @@ import qualified  Backend.Program as D
 transform :: S.Program -> Maybe D.Program
 transform (S.Program vars body) = do
 	modBody <- transformBody (transformVars vars) Nothing body
-	return $ D.Program [D.ValueDef "main" modBody]
+	return $ D.Program [D.ValueDef "main" modBody] ["Control.Monad"]
 
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState

@@ -11,11 +11,15 @@ import Backend.Program
 vsep = foldr (P.$+$) P.empty
 
 render :: Program -> String
-render (Program defs)
+render (Program defs imports)
 	= P.render
 	$ vsep
-	$ map renderDef
-	$ defs
+	$  map renderImport imports
+	++ map renderDef defs
+
+renderImport cs
+	= P.text "import"
+	P.<+> P.text cs
 
 renderDef (ValueDef name expr)
 	= P.hsep
@@ -28,8 +32,7 @@ renderExpression (Access name)
 	= renderName name
 
 renderExpression (Lambda names expr)
-	= P.parens
-	$ P.hsep
+	= P.hsep
 	[ P.hcat
 		[P.text "\\"
 		, P.hsep $ map renderName names
@@ -39,17 +42,16 @@ renderExpression (Lambda names expr)
 	]
 
 renderExpression (Beta expr1 expr2)
-	= P.parens
-	$ P.hsep
+	= P.hsep
+	$ map P.parens
 	$ map renderExpression
 	$ [expr1, expr2]
 
 renderExpression (Binary op expr1 expr2)
-	= P.parens
-	$ P.hsep
-	[ renderExpression expr1
+	= P.hsep
+	[ P.parens $ renderExpression expr1
 	, renderName op
-	, renderExpression expr2
+	, P.parens $ renderExpression expr2
 	]
 
 renderExpression (Tuple exprs)
@@ -60,16 +62,14 @@ renderExpression (Tuple exprs)
 	$ exprs
 
 renderExpression (Typed expr t)
-	= P.parens
-	$ P.hsep
-	[ renderExpression expr
+	= P.hsep
+	[ P.parens $ renderExpression expr
 	, P.text "::"
 	, renderType t
 	]
 
 renderExpression (DoExpression statements)
-	= P.parens
-	$ P.text "do" P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
+	= P.text "do" P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
 
 renderExpression (Range exprFrom exprTo)
 	= P.brackets
