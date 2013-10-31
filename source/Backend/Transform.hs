@@ -78,10 +78,10 @@ transformStatement (varStates, modStatements) = \case
 			= M.insert accName (VarState t 0)
 			$ M.insert iterName (VarState D.HsInteger 0)
 			$ varStates
-		modBody <- transformBody varStates'' (Just accName) body --varStates'' (two primes)
+		modBody <- transformBody varStates'' (Just accName) body
 		let modStatement = D.DoBind
 			(unvzName accName j)
-			(beta [D.Access "foldM", D.Lambda [accName, iterName] modBody, D.Access accName, modRange])
+			(beta [D.Access "foldM", D.Lambda [accName, iterName] modBody, D.Access (unvzName accName i), modRange])
 		return (varStates', modStatement:modStatements)
 
 transformExecute :: VarStates -> S.Name -> [S.Expression] -> Maybe D.Expression
