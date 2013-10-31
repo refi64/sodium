@@ -72,7 +72,7 @@ forCycleTr = do
 	body <- bodyTr
 	return $ ForCycle names name exprFrom exprTo body
 
-expressionTr = sepr termTr $
+expressionTr = sepl termTr $
 	Tr.head >>= \case
 		T.Plus -> return (Binary OpAdd)
 		T.Minus -> return (Binary OpSubtract)
