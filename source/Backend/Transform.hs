@@ -5,6 +5,7 @@ module Backend.Transform
 	) where
 
 import Data.List (genericReplicate)
+import Control.Monad (foldM)
 import qualified Data.Map as M
 -- S for Src, D for Dest
 import qualified Frontend.Program as S
@@ -37,52 +38,51 @@ transformType = \case
 
 transformBody :: VarStates -> S.Body -> Maybe D.Expression
 transformBody varStates (S.Body statements)
-	= Just $ transformStatements varStates statements
+	= transformStatements varStates statements
 
-transformStatements :: VarStates -> [S.Statement] -> D.Expression
-transformStatements varStates statements
-	= D.DoExpression
-	$ reverse
-	$ uncurry (\varStates' modStatements ->
-		D.DoExecute returnUnitStatement : modStatements
-	)
-	$ foldl transformStatement (varStates, []) statements
+transformStatements :: VarStates -> [S.Statement] -> Maybe D.Expression
+transformStatements varStates statements = do
+	(varStates', modStatements) <- foldM transformStatement (varStates, []) statements
+	let modStatements' = D.DoExecute returnUnitStatement : modStatements
+	return $ D.DoExpression (reverse modStatements')
 
-transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> (VarStates, [D.DoStatement])
+transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> Maybe (VarStates, [D.DoStatement])
 transformStatement (varStates, modStatements) = \case
 	S.Execute "readln" [S.Expression (S.Term (S.Access name))] ->
 		case M.lookup name varStates of
-			Nothing -> error "TODO: Maybe monad to handle errors (READLN)"
-			Just (VarState t i) -> let
-				{ j = succ i
-				; varStates' = M.insert name (VarState t j) varStates
-				; modStatement = D.DoBind
+			Nothing -> Nothing
+			Just (VarState t i) -> do
+				let j = succ i
+				let varStates' = M.insert name (VarState t j) varStates
+				let modStatement = D.DoBind
 					(unvzName name j)
 					(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO t)
-				} in (varStates', modStatement:modStatements)
-	S.Execute name exprs -> let
-		{ modStatement = D.DoExecute $ transformExecute varStates name exprs
-		} in (varStates, modStatement:modStatements)
+				Just (varStates', modStatement:modStatements)
+	S.Execute name exprs -> do
+		modExpr <- transformExecute varStates name exprs
+		let modStatement = D.DoExecute modExpr
+		Just (varStates, modStatement:modStatements)
 	S.Assign name expr ->
 		case M.lookup name varStates of
-			Nothing -> error "TODO: Maybe monad to handle errors (ASSIGN)"
-			Just (VarState t i) -> let
-				{ j = succ i
-				; varStates' = M.insert name (VarState t j) varStates
-				; modStatement = D.DoLet
-					(unvzName name j)
-					(transformExpr varStates expr)
-				} in (varStates', modStatement:modStatements)
+			Nothing -> Nothing
+			Just (VarState t i) -> do
+				let j = succ i
+				let varStates' = M.insert name (VarState t j) varStates
+				modExpr <- transformExpr varStates expr
+				let modStatement = D.DoLet (unvzName name j) modExpr
+				Just (varStates', modStatement:modStatements)
 
-transformExecute :: VarStates -> S.Name -> [S.Expression] -> D.Expression
+transformExecute :: VarStates -> S.Name -> [S.Expression] -> Maybe D.Expression
 transformExecute varStates = \case
 	"writeln" -> \case
-		[] -> D.Beta (D.Access "putStrLn") (D.Quote "")
-		exprs -> D.Beta (D.Access "putStrLn")
-			$ foldr1 (D.Binary "++")
-			$ map (showNoString varStates)
-			$ map (transformExpr varStates)
-			$ exprs
+		[] -> Just $ D.Beta (D.Access "putStrLn") (D.Quote "")
+		exprs -> do
+			modExprs <- mapM (transformExpr varStates) exprs
+			Just
+				$ D.Beta (D.Access "putStrLn")
+				$ foldr1 (D.Binary "++")
+				$ map (showNoString varStates)
+				$ modExprs
 
 beta = foldl1 D.Beta
 
@@ -99,27 +99,29 @@ showNoString varStates = \case
 			_ -> D.Beta (D.Access "show") (D.Access name)
 	a -> a -- TODO: bypass any D.Expression to transform underlying D.Access
 
-transformExpr :: VarStates -> S.Expression -> D.Expression
+transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
 transformExpr varStates = \case
 	S.Expression term -> transformTerm varStates term
-	S.ExpressionAdd term expr -> D.Binary "+"
-		(transformTerm varStates term)
-		(transformExpr varStates expr)
+	S.ExpressionAdd term expr -> do
+		x <- transformTerm varStates term
+		y <- transformExpr varStates expr
+		return $ D.Binary "+" x y
 
-transformTerm :: VarStates -> S.Term -> D.Expression
+transformTerm :: VarStates -> S.Term -> Maybe D.Expression
 transformTerm varStates = \case
 	S.Term prim -> transformPrim varStates prim
-	S.TermMultiply term prim -> D.Binary "*"
-		(transformTerm varStates term)
-		(transformPrim varStates prim)
+	S.TermMultiply term prim -> do
+		x <- transformTerm varStates term
+		y <- transformPrim varStates prim
+		return $ D.Binary "*" x y
 
-transformPrim :: VarStates -> S.Prim -> D.Expression
+transformPrim :: VarStates -> S.Prim -> Maybe D.Expression
 transformPrim varStates = \case
-	S.Quote cs -> D.Quote cs
-	S.Number cs -> D.Number cs
+	S.Quote cs -> Just $ D.Quote cs
+	S.Number cs -> Just $ D.Number cs
 	S.Access name -> case M.lookup name varStates of
-		Nothing -> error "TODO: Maybe monad to handle errors (PRIM)"
-		Just (VarState t i) -> D.Access (unvzName name i)
+		Nothing -> Nothing
+		Just (VarState t i) -> Just $ D.Access (unvzName name i)
 	S.Enclosed expr -> transformExpr varStates expr
 
 returnUnitStatement :: D.Expression
