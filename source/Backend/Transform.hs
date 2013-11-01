@@ -109,31 +109,7 @@ showNoString varStates = \case
 			D.HsString -> D.Access name
 			_ -> D.Beta (D.Access "show") (D.Access name)
 	a -> a -- TODO: bypass any D.Expression to transform underlying D.Access
-{-
-transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
-transformExpr varStates = \case
-	S.Expression term -> transformTerm varStates term
-	S.ExpressionAdd term expr -> do
-		x <- transformTerm varStates term
-		y <- transformExpr varStates expr
-		return $ D.Binary "+" x y
-	S.ExpressionSubtract term expr -> do
-		x <- transformTerm varStates term
-		y <- transformExpr varStates expr
-		return $ D.Binary "-" x y
 
-transformTerm :: VarStates -> S.Term -> Maybe D.Expression
-transformTerm varStates = \case
-	S.Term prim -> transformPrim varStates prim
-	S.TermMultiply term prim -> do
-		x <- transformTerm varStates term
-		y <- transformPrim varStates prim
-		return $ D.Binary "*" x y
-	S.TermDivide term prim -> do
-		x <- transformTerm varStates term
-		y <- transformPrim varStates prim
-		return $ D.Binary "/" x y
--}
 transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
 transformExpr varStates = \case
 	S.Quote cs -> return $ D.Quote cs
