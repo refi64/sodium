@@ -16,7 +16,20 @@ builder = Tr.trap (const <$> programTr) $ Tr.Trap (guard . isDot) where
 	isDot (T.Dot:_) = True
 	isDot _ = False
 
+
+-- Useful combinators
+
 expect a = mfilter (==a) Tr.head
+
+sepr elemTr opTr = tr where
+	tr = elemTr >>= next
+	next a = flip mplus (return a) $ opTr <*> return a <*> tr
+
+sepl elemTr opTr = elemTr >>= next where
+	next a = flip mplus (return a) $ (opTr <*> return a <*> elemTr) >>= next
+
+
+-- Syntactic definitions
 
 programTr
 	 =  Program
@@ -120,13 +133,6 @@ termTr = sepl primTr $
 		T.Slash -> return (Binary OpDivide)
 		_ -> mzero
 
-sepr elemTr opTr = tr where
-	tr = elemTr >>= next
-	next a = flip mplus (return a) $ opTr <*> return a <*> tr
-
-sepl elemTr opTr = elemTr >>= next where
-	next a = flip mplus (return a) $ (opTr <*> return a <*> elemTr) >>= next
-
 primTr
 	= msum
 	[ Call <$> nameTr <*> argsTr
@@ -136,9 +142,20 @@ primTr
 	, enclosedTr
 	]
 
-argsTr = expect T.LParen *> mplus end next where
-	end = expect T.RParen *> return []
-	next = (:) <$> expressionTr <*> mplus (expect T.Comma *> next) end
+enclosedTr
+	=  expect T.LParen
+	*> expressionTr
+	<* expect T.RParen
+
+argsTr
+	=  expect T.LParen
+	*> mplus end next
+	where
+		end = expect T.RParen *> return []
+		next
+			 =  (:)
+			<$> expressionTr
+			<*> mplus (expect T.Comma *> next) end
 
 accessTr
 	 =  Access
@@ -151,11 +168,6 @@ numberTr = Tr.head >>= \case
 quoteTr = Tr.head >>= \case
 	T.Quote cs -> return $ Quote cs
 	_ -> mzero
-
-enclosedTr
-	=  expect T.LParen
-	*> expressionTr
-	<* expect T.RParen
 
 nameTr :: Tr.Tr [T.Token] Maybe Name
 nameTr = Tr.head >>= \case
