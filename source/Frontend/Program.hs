@@ -2,6 +2,7 @@ module Frontend.Program
 	( Program(..)
 	, Vars(..)
 	, Body(..)
+	, Func(..)
 	, VarDecl(..)
 	, Statement(..)
 	, Expression(..)
@@ -13,7 +14,7 @@ module Frontend.Program
 type Name = String
 
 data Program
-	= Program Vars Body
+	= Program [Func] Vars Body
 	deriving (Show)
 
 data Vars
@@ -22,6 +23,10 @@ data Vars
 
 data Body
 	= Body [Statement]
+	deriving (Show)
+
+data Func
+	= Func Name Vars PasType Vars Body
 	deriving (Show)
 
 data VarDecl

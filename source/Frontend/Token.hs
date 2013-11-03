@@ -7,6 +7,7 @@ data Token
 	| KwFor
 	| KwTo
 	| KwDo
+	| KwFunction
 	| LParen
 	| RParen
 	| Semicolon

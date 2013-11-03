@@ -50,4 +50,5 @@ tokenTr = msum
 			, ("for", [KwFor])
 			, ("to", [KwTo])
 			, ("do", [KwDo])
+			, ("function", [KwFunction])
 			]

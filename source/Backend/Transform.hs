@@ -12,7 +12,7 @@ import qualified Frontend.Program as S
 import qualified  Backend.Program as D
 
 transform :: S.Program -> Maybe D.Program
-transform (S.Program vars body) = do
+transform (S.Program funcs vars body) = do
 	modBody <- transformBody (transformVars vars) Nothing body
 	return $ D.Program [D.ValueDef "main" modBody] ["Control.Monad"]
 

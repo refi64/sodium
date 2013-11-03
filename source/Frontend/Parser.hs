@@ -16,15 +16,26 @@ builder = Tr.trap (const <$> programTr) $ Tr.Trap (guard . isDot) where
 	isDot (T.Dot:_) = True
 	isDot _ = False
 
-programTr = Program <$> msum [varsTr, return (Vars [])] <*> bodyTr
+programTr
+	=   Program
+	<$> many funcTr
+	<*> varsTr
+	<*> bodyTr
 
 expect a = mfilter (==a) Tr.head
 
-varsTr = do
-	expect T.KwVar
-	Vars <$> many varDeclTr
+varsTr
+	=   flip mplus (return $ Vars [])
+	$   Vars
+	<$  expect T.KwVar
+	<*> many (varDeclTr
+	<*  expect T.Semicolon)
 
-varDeclTr = VarDecl <$> nameTr <* expect T.Colon <*> typeTr <* expect T.Semicolon
+varDeclTr
+	=   VarDecl
+	<$> nameTr
+	<*  expect T.Colon
+	<*> typeTr
 
 typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
@@ -36,13 +47,28 @@ typeTr = nameTr >>= \case
 bodyTr = do
 	expect T.KwBegin
 	Body . fst <$> Tr.before
-		statementTr
+		(statementTr <* expect T.Semicolon)
 		(expect T.KwEnd)
+
+funcTr = do
+	expect T.KwFunction
+	name <- nameTr
+	params <- Vars <$> paramsTr
+	expect T.Colon
+	retType <- typeTr
+	expect T.Semicolon
+	Func name params retType <$> varsTr <*> bodyTr <* expect T.Semicolon
+
+paramsTr = expect T.LParen *> mplus end next where
+	end = expect T.RParen *> return []
+	next = (:) <$> varDeclTr <*> mplus (expect T.Semicolon *> next) end
 
 statementTr
 	= msum
-	$ map (<* expect T.Semicolon)
-	[assignTr, executeTr, forCycleTr]
+	[ assignTr
+	, executeTr
+	, forCycleTr
+	]
 
 assignTr = do
 	cs <- nameTr
@@ -51,7 +77,7 @@ assignTr = do
 	return $ Assign cs expr
 
 executeTr = msum
-	[ callTr Execute
+	[ Execute <$> nameTr <*> argsTr
 	, do
 		name <- nameTr
 		return $ Execute name []
@@ -93,23 +119,17 @@ sepl elemTr opTr =
 	let next a = (opTr <*> return a <*> elemTr >>= next) `mplus` return a
 	in elemTr >>= next
 
-primTr = msum [callTr Call, accessTr, numberTr, quoteTr, enclosedTr]
+primTr
+	= msum
+	[ Call <$> nameTr <*> argsTr
+	, accessTr
+	, numberTr
+	, quoteTr
+	, enclosedTr]
 
-callTr :: (Name -> [Expression] -> a) -> Tr.Tr [T.Token] Maybe a
-callTr f = do
-	cs <- nameTr
-	expect T.LParen
-	let end = Tr.head >>= \case
-		T.RParen -> return $ f cs []
-		_ -> mzero
-	mplus end (f cs <$> argsTr)
-
-argsTr = do
-	expr <- expressionTr
-	Tr.head >>= \case
-		T.Comma -> (expr:) <$> argsTr
-		T.RParen -> return [expr]
-		_ -> mzero
+argsTr = expect T.LParen *> mplus end next where
+	end = expect T.RParen *> return []
+	next = (:) <$> expressionTr <*> mplus (expect T.Comma *> next) end
 
 accessTr = Access <$> nameTr
 
