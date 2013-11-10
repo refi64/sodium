@@ -2,6 +2,7 @@ module Backend.Program
 	( Name
 	, Program(..)
 	, Def(..)
+	, ValueDef(..)
 	, Expression(..)
 	, DoStatement(..)
 	, HsType(..)
@@ -22,8 +23,10 @@ data Program
 	= Program [Def] [String]
 	deriving (Show)
 
-data Def
-	= ValueDef Name Expression
+type Def = ValueDef
+
+data ValueDef
+	= ValueDef Name [Name] Expression
 	deriving (Show)
 
 data Expression
@@ -36,6 +39,7 @@ data Expression
 	| Number String
 	| Typed Expression HsType
 	| DoExpression [DoStatement]
+	| PureLet [ValueDef] Expression
 	| Range Expression Expression
 	deriving (Show)
 

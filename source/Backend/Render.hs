@@ -21,9 +21,10 @@ renderImport cs
 	= P.text "import"
 	P.<+> P.text cs
 
-renderDef (ValueDef name expr)
+renderDef (ValueDef name names expr)
 	= P.hsep
 	[ renderName name
+	, P.hsep $ map renderName names
 	, P.text "="
 	, renderExpression expr
 	]
@@ -69,7 +70,13 @@ renderExpression (Typed expr t)
 	]
 
 renderExpression (DoExpression statements)
-	= P.text "do" P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
+	= P.text "do"
+	P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
+
+renderExpression (PureLet valueDefs expr)
+	= P.text "let"
+	P.$+$ (P.nest 4 $ vsep $ map renderDef $ valueDefs)
+	P.$+$ (P.text "in" P.<+> renderExpression expr)
 
 renderExpression (Range exprFrom exprTo)
 	= P.brackets
