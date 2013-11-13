@@ -11,21 +11,19 @@ import Backend.Render
 main = do
 	args <- getArgs
 	case args of
-		[filename1, filename2]
-			->  readFile filename1
-			>>= process
-			>>= writeFile filename2
+		[filename1, filename2] -> do
+			source <- readFile filename1
+			case process source of
+				Just dest -> do
+					putStrLn dest
+					writeFile filename2 dest
+				Nothing ->
+					putStrLn "Can\'t translate"
 		_ -> putStrLn "usage: sodium filename.pas filename.hs"
 
-process source = do
-	let tokens = tokenize source
-	let parsetree = tokens >>= parse
-	let modtree = parsetree >>= transform
-	let dest = render <$> modtree
-	print tokens
-	print parsetree
-	print modtree
-	print dest
-	return $ case dest of
-		Nothing -> "-- CAN\'T TRANSLATE --"
-		Just cs -> cs
+process :: String -> Maybe String
+process
+	 =  render
+	<=< transform
+	<=< parse
+	<=< tokenize

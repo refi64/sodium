@@ -10,9 +10,10 @@ import Backend.Program
 
 vsep = foldr (P.$+$) P.empty
 
-render :: Program -> String
+render :: Program -> Maybe String
 render (Program defs imports)
-	= P.render
+	= return
+	$ P.render
 	$ vsep
 	$  map renderImport imports
 	++ map renderDef defs
@@ -35,7 +36,7 @@ renderExpression (Access name)
 renderExpression (Lambda names expr)
 	= P.hsep
 	[ P.hcat
-		[P.text "\\"
+		[ P.text "\\"
 		, P.hsep $ map renderName names
 		]
 	, P.text "->"
@@ -71,12 +72,23 @@ renderExpression (Typed expr t)
 
 renderExpression (DoExpression statements)
 	= P.text "do"
-	P.$+$ (P.nest 4 $ vsep $ map renderStatement $ statements)
+	P.$+$
+		( P.nest 4
+		$ vsep
+		$ map renderStatement
+		$ statements
+		)
 
 renderExpression (PureLet valueDefs expr)
 	= P.text "let"
-	P.$+$ (P.nest 4 $ vsep $ map renderDef $ valueDefs)
-	P.$+$ (P.text "in" P.<+> renderExpression expr)
+	P.$+$
+		( P.nest 4
+		$ vsep
+		$ map renderDef
+		$ valueDefs
+		)
+	P.$+$
+		(P.text "in" P.<+> renderExpression expr)
 
 renderExpression (Range exprFrom exprTo)
 	= P.brackets
