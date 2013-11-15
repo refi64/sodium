@@ -7,10 +7,9 @@ import qualified Tr
 import Frontend.Token
 
 tokenize :: String -> Maybe [Token]
-tokenize = Tr.runTrap gather
-
-gather :: Tr.Trap String Maybe [Token]
-gather = Tr.trap (const <$> concat <$> many tokenTr) $ Tr.Trap (guard . null)
+tokenize = Tr.trap
+	(const <$> concat <$> many tokenTr)
+	(guard . null)
 
 tokenTr :: Tr.Tr String Maybe [Token]
 tokenTr = msum

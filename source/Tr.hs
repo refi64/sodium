@@ -1,10 +1,10 @@
 module Tr
-	( Tr(..)
+	( Tr
+	, runTr
 	, state
 	, head
 	, until
 	, before
-	, Trap(..)
 	, trap
 	) where
 
@@ -33,12 +33,9 @@ before u v = element `mplus` stop where
 	element = (\b -> ([], b)) <$> v
 	stop = (\a (as, b) -> (a:as, b)) <$> u <*> (u `before` v)
 
-
-newtype Trap x m a = Trap { runTrap :: x -> m a }
-
-trap :: Monad m => Tr x m (a -> b) -> Trap x m a -> Trap x m b
-trap tr next = Trap $
+trap :: Monad m => Tr x m (a -> b) -> (x -> m a) -> (x -> m b)
+trap tr next =
 	\x -> do
 		(a, y) <- runTr tr x
-		b <- runTrap next y
+		b <- next y
 		return $ a b

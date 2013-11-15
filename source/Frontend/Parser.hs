@@ -9,12 +9,13 @@ import Frontend.Program
 import Debug.Trace
 
 parse :: [T.Token] -> Maybe Program
-parse = Tr.runTrap builder
-
-builder :: Tr.Trap [T.Token] Maybe Program
-builder = Tr.trap (const <$> programTr) $ Tr.Trap (guard . isDot) where
-	isDot (T.Dot:_) = True
-	isDot _ = False
+parse
+	= Tr.trap
+		(const <$> programTr)
+		(guard . isDot)
+	where
+		isDot (T.Dot:_) = True
+		isDot _ = False
 
 
 -- Useful combinators
