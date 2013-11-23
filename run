@@ -1,0 +1,3 @@
+#!/bin/bash
+
+ghc source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir build -isource -o exe && ./exe
