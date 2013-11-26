@@ -3,6 +3,7 @@ module Main (main) where
 import System.Environment
 import Control.Applicative
 import Control.Monad
+import Frontend.Chlorinate
 import Frontend.Parser
 import Frontend.Tokenizer
 import Backend.Transform
@@ -23,7 +24,9 @@ main = do
 
 process :: String -> Maybe String
 process
-	 =  render
-	<=< transform
+	 = (return . show)
+	<=< chlorinate
+--	 =  render
+--	<=< transform
 	<=< parse
 	<=< tokenize

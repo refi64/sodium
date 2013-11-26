@@ -51,6 +51,8 @@ varDeclTr
 	<*  expect T.Colon
 	<*> typeTr
 
+-- BUG? Pascal is case-insensitive
+-- and this function is case-sensitive
 typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
 	"real" -> return PasReal
