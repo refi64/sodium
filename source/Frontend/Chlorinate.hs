@@ -30,8 +30,12 @@ chlorinateVB (S.Vars vardecls) (S.Body statements)
 		clStatements <- mapM chlorinateStatement statements
 		return $ D.Body clVars clStatements
 
-chlorinateFunc
-	= undefined
+chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
+	 =  D.Func
+	<$> chlorinateName name
+	<*> mapM chlorinateVarDecl params
+	<*> chlorinateType pasType
+	<*> chlorinateVB vars body
 
 chlorinateName name
 	= return $ D.Name name

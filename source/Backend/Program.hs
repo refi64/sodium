@@ -11,10 +11,7 @@ module Backend.Program
 type Name = String
 
 data HsType
-	= HsInteger
-	| HsDouble
-	| HsBoolean
-	| HsString
+	= HsUnit
 	| HsIO HsType
 	| HsType Name
 	deriving (Show)

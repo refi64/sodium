@@ -108,7 +108,8 @@ renderName
 	= P.text
 
 renderType = \case
-	HsInteger -> P.text "Integer"
+	HsType cs  -> P.text cs
+	HsUnit -> P.text "()"
 	HsIO t -> P.hsep [P.text "IO", renderType t]
 
 renderStatement (DoBind name expr)

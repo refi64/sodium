@@ -6,7 +6,7 @@ import Control.Monad
 import Frontend.Chlorinate
 import Frontend.Parser
 import Frontend.Tokenizer
-import Backend.Transform
+import Backend.Dechlorinate
 import Backend.Render
 
 main = do
@@ -24,9 +24,8 @@ main = do
 
 process :: String -> Maybe String
 process
-	 = (return . show)
+	 =  render
+	<=< dechlorinate
 	<=< chlorinate
---	 =  render
---	<=< transform
 	<=< parse
 	<=< tokenize
