@@ -1,20 +1,27 @@
 module Chloride.Chloride where
 
+import qualified Data.Map as M
+
 data Name
 	= Name String
 	| NameMain
-	deriving (Show)
+	| NameUnique Name
+	deriving (Eq, Ord, Show)
 
 data Program
-	= Program [Func]
+	= Program [Func Body]
 	deriving (Show)
 
-data Func
+data VecProgram
+	= VecProgram [Func VecBody]
+	deriving (Show)
+
+data Func b
 	= Func
 	{ _funcName :: Name
 	, _funcParams :: Vars
 	, _funcRet :: ClType
-	, _funcBody :: Body
+	, _funcBody :: b
 	} deriving (Show)
 
 data Body
@@ -46,6 +53,36 @@ data Expression
 	| Binary Operator Expression Expression
 	deriving (Show)
 
+data VecBody
+	= VecBody
+	{ _vecBodyVars :: Vars
+	, _vecBodyStatements :: [VecStatement]
+	, _vecBodyIndices :: Indicies
+	} deriving (Show)
+
+data VecStatement
+	= VecAssign Name Integer VecExpression
+	| VecExecute Name [VecExpression]
+	| VecForStatement VecForCycle
+	deriving (Show)
+
+data VecForCycle
+	= VecForCycle
+	{ _vecForClosure :: [Name]
+	, _vecForName :: Name
+	, _vecForFrom :: VecExpression
+	, _vecForTo :: VecExpression
+	, _vecForBody :: VecBody
+	} deriving (Show)
+
+data VecExpression
+	= VecAccess Name Integer
+	| VecCall Name [VecExpression]
+	| VecNumber String
+	| VecQuote String
+	| VecBinary Operator VecExpression VecExpression
+	deriving (Show)
+
 data Operator
 	= OpAdd
 	| OpSubtract
@@ -62,4 +99,7 @@ data ClType
 	deriving (Show)
 
 type Vars
-	= [(Name, ClType)]
+	= M.Map Name ClType
+
+type Indicies
+	= M.Map Name Integer

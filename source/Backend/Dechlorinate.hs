@@ -5,7 +5,7 @@ module Backend.Dechlorinate
 	) where
 
 import Data.List (genericReplicate)
-import Control.Monad (foldM)
+import Control.Monad (foldM, guard)
 import Control.Applicative ((<$>))
 import qualified Data.Map as M
 -- S for Src, D for Dest
@@ -28,12 +28,10 @@ initVarState name clType =
 	)
 
 transformVars :: S.Vars -> VarStates
-transformVars vardecls
+transformVars
 	= M.fromList
-	$ flip map vardecls
-	$ uncurry
-	$ \name clType ->
-		initVarState name clType
+	. map (uncurry initVarState)
+	. M.toList
 
 -- WARNING: Name handling is broken. Beware, because
 -- strange errors may appear in generated code.
@@ -136,10 +134,12 @@ transformExecute varStates = \case
 				$ map (showNoString varStates)
 				$ modExprs
 
-transformFunc :: S.Func -> Maybe D.Def
-transformFunc (S.Func S.NameMain [] S.ClVoid clBody)
-	 =  D.ValueDef "main" []
-	<$> transformBody {-(transformVars vars)-} M.empty Nothing clBody
+transformFunc :: S.Func S.Body -> Maybe D.Def
+transformFunc (S.Func S.NameMain params S.ClVoid clBody)
+	 = do
+		guard $ M.null params
+		modBody <- transformBody M.empty Nothing clBody
+		return $ D.ValueDef "main" [] modBody
 transformFunc (S.Func name params clType clBody)
 	 =  D.ValueDef (transformName name) paramNames
 	<$> transformPureBody
@@ -150,7 +150,7 @@ transformFunc (S.Func name params clType clBody)
 	where
 		paramNames
 			= map transformName
-			$ map fst
+			$ M.keys
 			$ params
 		varStates
 			= M.union
@@ -247,4 +247,3 @@ transformExpr funcHookName varStates = \case
 
 returnUnitStatement :: D.Expression
 returnUnitStatement = D.Beta (D.Access "return") (D.Tuple [])
-

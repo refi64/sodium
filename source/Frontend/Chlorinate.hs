@@ -9,6 +9,7 @@ import Control.Applicative
 -- S for Src, D for Dest
 import qualified Frontend.Program  as S
 import qualified Chloride.Chloride as D
+import qualified Data.Map as M
 
 chlorinate :: S.Program -> Maybe D.Program
 chlorinate (S.Program funcs vars body)
@@ -17,7 +18,7 @@ chlorinate (S.Program funcs vars body)
 			clBody <- chlorinateVB vars body
 			return $ D.Func
 				D.NameMain
-				[]
+				M.empty
 				D.ClVoid
 				clBody
 		clFuncs <- mapM
@@ -28,12 +29,12 @@ chlorinateVB (S.Vars vardecls) (S.Body statements)
 	= do
 		clVars <- mapM chlorinateVarDecl vardecls
 		clStatements <- mapM chlorinateStatement statements
-		return $ D.Body clVars clStatements
+		return $ D.Body (M.fromList clVars) clStatements
 
 chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 	 =  D.Func
 	<$> chlorinateName name
-	<*> mapM chlorinateVarDecl params
+	<*> (M.fromList <$> mapM chlorinateVarDecl params)
 	<*> chlorinateType pasType
 	<*> chlorinateVB vars body
 
@@ -61,6 +62,16 @@ chlorinateStatement = \case
 		 -> D.Execute
 		<$> chlorinateName name
 		<*> mapM chlorinateExpr exprs
+	S.ForCycle closure name fromExpr toExpr body
+		 -> D.ForStatement
+		<$> ( D.ForCycle
+			<$> mapM chlorinateName closure
+			<*> chlorinateName name
+			<*> chlorinateExpr fromExpr
+			<*> chlorinateExpr toExpr
+			<*> chlorinateVB (S.Vars []) body
+			)
+
 
 chlorinateExpr = \case
 	S.Access name

@@ -8,6 +8,7 @@ import Frontend.Parser
 import Frontend.Tokenizer
 import Backend.Dechlorinate
 import Backend.Render
+import Chloride.Dissolve
 
 main = do
 	args <- getArgs
@@ -24,8 +25,10 @@ main = do
 
 process :: String -> Maybe String
 process
-	 =  render
-	<=< dechlorinate
+--	 =  render
+	 = (return . show)
+--	<=< dechlorinate
+	<=< dissolve
 	<=< chlorinate
 	<=< parse
 	<=< tokenize
