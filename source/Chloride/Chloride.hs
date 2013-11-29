@@ -30,9 +30,14 @@ data Body
 	, _bodyStatements :: [Statement]
 	} deriving (Show)
 
+data Argument
+	= LValue Name
+	| RValue Expression
+	deriving (Show)
+
 data Statement
 	= Assign Name Expression
-	| Execute Name [Expression]
+	| Execute Name [Argument]
 	| ForStatement ForCycle
 	deriving (Show)
 
@@ -60,9 +65,14 @@ data VecBody
 	, _vecBodyIndices :: Indicies
 	} deriving (Show)
 
+data VecArgument
+	= VecLValue Name
+	| VecRValue VecExpression
+	deriving (Show)
+
 data VecStatement
 	= VecAssign Name Integer VecExpression
-	| VecExecute Name [VecExpression]
+	| VecExecute Name [VecArgument]
 	| VecForStatement VecForCycle
 	deriving (Show)
 

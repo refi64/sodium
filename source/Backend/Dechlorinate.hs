@@ -5,7 +5,7 @@ module Backend.Dechlorinate
 	) where
 
 import Data.List (genericReplicate)
-import Control.Monad (foldM, guard)
+import Control.Monad (forM, foldM, guard)
 import Control.Applicative ((<$>))
 import qualified Data.Map as M
 -- S for Src, D for Dest
@@ -65,7 +65,7 @@ transformBody varStatesExternal mName (S.Body vars statements) = do
 
 transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> Maybe (VarStates, [D.DoStatement])
 transformStatement (varStates, modStatements) = \case
-	S.Execute (S.Name "readln") [S.Access name] -> do
+	S.Execute (S.Name "readln") [S.LValue name] -> do
 		VarState t i <- M.lookup (transformName name) varStates
 		let j = succ i
 		let varStates' = M.insert (transformName name) (VarState t j) varStates
@@ -122,13 +122,15 @@ transformStatement (varStates, modStatements) = \case
 			)
 		return (varStates', modStatement:modStatements)
 
-transformExecute :: VarStates -> D.Name -> [S.Expression] -> Maybe D.Expression
+transformExecute :: VarStates -> D.Name -> [S.Argument] -> Maybe D.Expression
 transformExecute varStates = \case
 	"writeln" -> \case
-		[] -> Just $ D.Beta (D.Access "putStrLn") (D.Quote "")
+		[] -> return $ D.Beta (D.Access "putStrLn") (D.Quote "")
 		exprs -> do
-			modExprs <- mapM (transformExpr id varStates) exprs
-			Just
+			modExprs <- forM exprs $ \case
+				S.LValue name -> transformExpr id varStates (S.Access name)
+				S.RValue expr -> transformExpr id varStates expr
+			return
 				$ D.Beta (D.Access "putStrLn")
 				$ foldr1 (D.Binary "++")
 				$ map (showNoString varStates)

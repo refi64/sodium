@@ -58,10 +58,10 @@ chlorinateStatement = \case
 		 -> D.Assign
 		<$> chlorinateName name
 		<*> chlorinateExpr expr
-	S.Execute name exprs
+	S.Execute (name) exprs
 		 -> D.Execute
 		<$> chlorinateName name
-		<*> mapM chlorinateExpr exprs
+		<*> mapM chlorinateArgument exprs
 	S.ForCycle closure name fromExpr toExpr body
 		 -> D.ForStatement
 		<$> ( D.ForCycle
@@ -72,6 +72,9 @@ chlorinateStatement = \case
 			<*> chlorinateVB (S.Vars []) body
 			)
 
+chlorinateArgument = \case
+	S.Access name -> D.LValue <$> chlorinateName name
+	expr -> D.RValue <$> chlorinateExpr expr
 
 chlorinateExpr = \case
 	S.Access name

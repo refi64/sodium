@@ -47,10 +47,20 @@ vectorizeStatement (indicies, vecStatements) = \case
 		let indicies' = M.insert name index' indicies
 		let vecStatement = VecAssign name index' vecExpr
 		return (indicies', vecStatement:vecStatements)
-	Execute name exprs -> do
-		vecExprs <- mapM (vectorizeExpression indicies) exprs
-		let vecStatement = VecExecute name vecExprs
-		return (indicies, vecStatement:vecStatements)
+	Execute name args -> do
+		let vectorizeArg = \case
+			LValue name -> return (VecLValue name)
+			RValue expr -> VecRValue <$> vectorizeExpression indicies expr
+		vecArgs <- mapM vectorizeArg args
+		let sidenames = [sidename | VecLValue sidename <- vecArgs]
+		let indicies'
+			= flip M.mapWithKey indicies
+			$ \name index ->
+				if name `elem` sidenames
+					then succ index
+					else index
+		let vecStatement = VecExecute name vecArgs
+		return (indicies', vecStatement:vecStatements)
 	ForStatement forCycle -> do
 		let closure
 			= M.fromList
