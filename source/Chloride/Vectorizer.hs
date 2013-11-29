@@ -26,65 +26,61 @@ vectorizeBody closure body = do
 	let indicies = M.union
 		(initIndicies (_bodyVars body))
 		closure
-	(indicies', vecStatements) <- foldM
-		vectorizeStatement
-		(indicies, [])
-		(_bodyStatements body)
+	(vecStatements, indicies') <- flip runStateT indicies
+		$ mapM vectorizeStatement (_bodyStatements body)
 	return $ VecBody
 		(_bodyVars body)
 		vecStatements
 		indicies'
 
-vectorizeStatement
-	:: (Indicies, [VecStatement])
-	-> Statement
-	-> Maybe (Indicies, [VecStatement])
-vectorizeStatement (indicies, vecStatements) = \case
+vectorizeStatement :: Statement -> StateT Indicies Maybe VecStatement
+vectorizeStatement = \case
 	Assign name expr -> do
-		index <- M.lookup name indicies
-		vecExpr <- vectorizeExpression indicies expr
+		indicies <- get
+		index <- lift $ M.lookup name indicies
+		vecExpr <- lift $ vectorizeExpression indicies expr
 		let index' = succ index
-		let indicies' = M.insert name index' indicies
-		let vecStatement = VecAssign name index' vecExpr
-		return (indicies', vecStatement:vecStatements)
+		put $ M.insert name index' indicies
+		return $ VecAssign name index' vecExpr
 	Execute name args -> do
+		indicies <- get
 		let vectorizeArg = \case
 			LValue name -> return (VecLValue name)
 			RValue expr -> VecRValue <$> vectorizeExpression indicies expr
-		vecArgs <- mapM vectorizeArg args
+		vecArgs <- lift $ mapM vectorizeArg args
 		let sidenames = [sidename | VecLValue sidename <- vecArgs]
-		let indicies'
-			= flip M.mapWithKey indicies
+		put
+			$ flip M.mapWithKey indicies
 			$ \name index ->
 				if name `elem` sidenames
 					then succ index
 					else index
-		let vecStatement = VecExecute name vecArgs
-		return (indicies', vecStatement:vecStatements)
+		return $ VecExecute name vecArgs
 	ForStatement forCycle -> do
+		indicies <- get
+		vecFrom <- lift $ vectorizeExpression indicies
+			(_forFrom forCycle)
+		vecTo <- lift $ vectorizeExpression indicies
+			(_forTo forCycle)
 		let closure
 			= M.fromList
 			$ map (,1)
 			$ _forName forCycle
 			: _forClosure forCycle
-		vecFrom <- vectorizeExpression indicies
-			(_forFrom forCycle)
-		vecTo <- vectorizeExpression indicies
-			(_forTo forCycle)
-		vecBody <- vectorizeBody closure (_forBody forCycle)
-		let vecStatement = VecForStatement $ VecForCycle
-			(_forClosure forCycle)
-			(_forName forCycle)
-			vecFrom
-			vecTo
-			vecBody
-		let indicies'
-			= flip M.mapWithKey indicies
+		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
+		put
+			$ flip M.mapWithKey indicies
 			$ \name index ->
 				if name `elem` (_forClosure forCycle)
 					then succ index
 					else index
-		return (indicies', vecStatement:vecStatements)
+		return
+			$ VecForStatement
+			$ VecForCycle
+				(_forClosure forCycle)
+				(_forName forCycle)
+				vecFrom vecTo
+				vecBody
 
 vectorizeExpression :: Indicies -> Expression -> Maybe VecExpression
 vectorizeExpression indicies = \case
