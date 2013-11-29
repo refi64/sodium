@@ -16,51 +16,51 @@ vectorize func = do
 		-- TODO: wrap func name as variable
 		-- in NameUnique to allow recursion
 		( M.singleton (_funcName func) 0
-		`M.union` initIndicies (_funcParams func)
+		`M.union` initIndices (_funcParams func)
 		)
 		(_funcBody func)
 	return $ func { _funcBody = vecBody }
 
-vectorizeBody :: Indicies -> Body -> Maybe VecBody
+vectorizeBody :: Indices -> Body -> Maybe VecBody
 vectorizeBody closure body = do
-	let indicies = M.union
-		(initIndicies (_bodyVars body))
+	let indices = M.union
+		(initIndices (_bodyVars body))
 		closure
-	(vecStatements, indicies') <- flip runStateT indicies
+	(vecStatements, indices') <- flip runStateT indices
 		$ mapM vectorizeStatement (_bodyStatements body)
 	return $ VecBody
 		(_bodyVars body)
 		vecStatements
-		indicies'
+		indices'
 
-vectorizeStatement :: Statement -> StateT Indicies Maybe VecStatement
+vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
-		indicies <- get
-		index <- lift $ M.lookup name indicies
-		vecExpr <- lift $ vectorizeExpression indicies expr
+		indices <- get
+		index <- lift $ M.lookup name indices
+		vecExpr <- lift $ vectorizeExpression indices expr
 		let index' = succ index
-		put $ M.insert name index' indicies
+		put $ M.insert name index' indices
 		return $ VecAssign name index' vecExpr
 	Execute name args -> do
-		indicies <- get
+		indices <- get
 		let vectorizeArg = \case
 			LValue name -> return (VecLValue name)
-			RValue expr -> VecRValue <$> vectorizeExpression indicies expr
+			RValue expr -> VecRValue <$> vectorizeExpression indices expr
 		vecArgs <- lift $ mapM vectorizeArg args
 		let sidenames = [sidename | VecLValue sidename <- vecArgs]
 		put
-			$ flip M.mapWithKey indicies
+			$ flip M.mapWithKey indices
 			$ \name index ->
 				if name `elem` sidenames
 					then succ index
 					else index
 		return $ VecExecute name vecArgs
 	ForStatement forCycle -> do
-		indicies <- get
-		vecFrom <- lift $ vectorizeExpression indicies
+		indices <- get
+		vecFrom <- lift $ vectorizeExpression indices
 			(_forFrom forCycle)
-		vecTo <- lift $ vectorizeExpression indicies
+		vecTo <- lift $ vectorizeExpression indices
 			(_forTo forCycle)
 		let closure
 			= M.fromList
@@ -69,7 +69,7 @@ vectorizeStatement = \case
 			: _forClosure forCycle
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
 		put
-			$ flip M.mapWithKey indicies
+			$ flip M.mapWithKey indices
 			$ \name index ->
 				if name `elem` (_forClosure forCycle)
 					then succ index
@@ -82,20 +82,20 @@ vectorizeStatement = \case
 				vecFrom vecTo
 				vecBody
 
-vectorizeExpression :: Indicies -> Expression -> Maybe VecExpression
-vectorizeExpression indicies = \case
+vectorizeExpression :: Indices -> Expression -> Maybe VecExpression
+vectorizeExpression indices = \case
 	Quote  cs -> return $ VecQuote  cs
 	Number cs -> return $ VecNumber cs
 	Access name -> do
-		index <- M.lookup name indicies
+		index <- M.lookup name indices
 		return $ VecAccess name index
 	Call name exprs -> do
-		vecExprs <- mapM (vectorizeExpression indicies) exprs
+		vecExprs <- mapM (vectorizeExpression indices) exprs
 		return $ VecCall name vecExprs
 	Binary op expr1 expr2 -> do
-		vecExpr1 <- vectorizeExpression indicies expr1
-		vecExpr2 <- vectorizeExpression indicies expr2
+		vecExpr1 <- vectorizeExpression indices expr1
+		vecExpr2 <- vectorizeExpression indices expr2
 		return $ VecBinary op vecExpr1 vecExpr2
 
-initIndicies :: Vars -> Indicies
-initIndicies = M.map (const 0)
+initIndices :: Vars -> Indices
+initIndices = M.map (const 0)

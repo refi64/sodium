@@ -62,7 +62,7 @@ data VecBody
 	= VecBody
 	{ _vecBodyVars :: Vars
 	, _vecBodyStatements :: [VecStatement]
-	, _vecBodyIndices :: Indicies
+	, _vecBodyIndices :: Indices
 	} deriving (Show)
 
 data VecArgument
@@ -111,5 +111,5 @@ data ClType
 type Vars
 	= M.Map Name ClType
 
-type Indicies
+type Indices
 	= M.Map Name Integer
