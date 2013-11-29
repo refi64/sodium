@@ -84,9 +84,12 @@ chlorinateExpr = \case
 		 -> D.Call
 		<$> chlorinateName name
 		<*> mapM chlorinateExpr exprs
-	S.Number s
+	S.Number cs
 		-> return
-		 $ D.Number s
+		 $ D.Number cs
+	S.Quote cs
+		-> return
+		 $ D.Quote cs
 	S.Binary op x y
 		 -> D.Binary
 		<$> chlorinateOp op
