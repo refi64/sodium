@@ -14,9 +14,7 @@ import Chloride.Chloride
 vectorize :: Func Body -> Maybe (Func VecBody)
 vectorize func = do
 	vecBody <- vectorizeBody
-		-- TODO: wrap func name as variable
-		-- in NameUnique to allow recursion
-		( M.singleton (_funcName func) 0
+		( M.singleton (_funcRetName func) 0
 		`M.union` initIndices (_funcParams func)
 		)
 		(_funcBody func)

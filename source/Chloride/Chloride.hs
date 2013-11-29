@@ -20,7 +20,8 @@ data Func b
 	= Func
 	{ _funcName :: Name
 	, _funcParams :: Vars
-	, _funcRet :: ClType
+	, _funcRetType :: ClType
+	, _funcRetName :: Name
 	, _funcBody :: b
 	} deriving (Show)
 

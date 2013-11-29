@@ -15,20 +15,21 @@ chlorinate :: S.Program -> Maybe D.Program
 chlorinate (S.Program funcs vars body)
 	= do
 		clMain <- do
-			clBody <- chlorinateVB vars body
+			clBody <- chlorinateVB chlorinateName vars body
 			return $ D.Func
 				D.NameMain
 				M.empty
 				D.ClVoid
+				D.NameMain
 				clBody
 		clFuncs <- mapM
 			chlorinateFunc funcs
 		return $ D.Program (clMain:clFuncs)
 
-chlorinateVB (S.Vars vardecls) (S.Body statements)
+chlorinateVB nameHook (S.Vars vardecls) (S.Body statements)
 	= do
 		clVars <- mapM chlorinateVarDecl vardecls
-		clStatements <- mapM chlorinateStatement statements
+		clStatements <- mapM (chlorinateStatement nameHook) statements
 		return $ D.Body (M.fromList clVars) clStatements
 
 chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
@@ -36,7 +37,13 @@ chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 	<$> chlorinateName name
 	<*> (M.fromList <$> mapM chlorinateVarDecl params)
 	<*> chlorinateType pasType
-	<*> chlorinateVB vars body
+	<*> nameHook name
+	<*> chlorinateVB nameHook vars body
+	where
+		nameHook cs =
+			if cs == name
+				then D.NameUnique <$> chlorinateName cs
+				else chlorinateName cs
 
 chlorinateName name
 	= return $ D.Name name
@@ -53,37 +60,37 @@ chlorinateType = \case
 	S.PasString  -> return D.ClString
 	S.PasType cs -> mzero
 
-chlorinateStatement = \case
+chlorinateStatement nameHook = \case
 	S.Assign name expr
 		 -> D.Assign
-		<$> chlorinateName name
-		<*> chlorinateExpr expr
-	S.Execute (name) exprs
+		<$> nameHook name
+		<*> chlorinateExpr nameHook expr
+	S.Execute name exprs
 		 -> D.Execute
 		<$> chlorinateName name
-		<*> mapM chlorinateArgument exprs
+		<*> mapM (chlorinateArgument nameHook) exprs
 	S.ForCycle closure name fromExpr toExpr body
 		 -> D.ForStatement
 		<$> ( D.ForCycle
-			<$> mapM chlorinateName closure
-			<*> chlorinateName name
-			<*> chlorinateExpr fromExpr
-			<*> chlorinateExpr toExpr
-			<*> chlorinateVB (S.Vars []) body
+			<$> mapM nameHook closure
+			<*> nameHook name
+			<*> chlorinateExpr nameHook fromExpr
+			<*> chlorinateExpr nameHook toExpr
+			<*> chlorinateVB nameHook (S.Vars []) body
 			)
 
-chlorinateArgument = \case
-	S.Access name -> D.LValue <$> chlorinateName name
-	expr -> D.RValue <$> chlorinateExpr expr
+chlorinateArgument nameHook = \case
+	S.Access name -> D.LValue <$> nameHook name
+	expr -> D.RValue <$> chlorinateExpr nameHook expr
 
-chlorinateExpr = \case
+chlorinateExpr nameHook = \case
 	S.Access name
 		 -> D.Access
-		<$> chlorinateName name
+		<$> nameHook name
 	S.Call name exprs
 		 -> D.Call
 		<$> chlorinateName name
-		<*> mapM chlorinateExpr exprs
+		<*> mapM (chlorinateExpr nameHook) exprs
 	S.Number cs
 		-> return
 		 $ D.Primary
@@ -95,8 +102,8 @@ chlorinateExpr = \case
 	S.Binary op x y
 		 -> D.Binary
 		<$> chlorinateOp op
-		<*> chlorinateExpr x
-		<*> chlorinateExpr y
+		<*> chlorinateExpr nameHook x
+		<*> chlorinateExpr nameHook y
 
 chlorinateOp = \case
 	S.OpAdd -> return D.OpAdd

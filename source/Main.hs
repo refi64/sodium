@@ -25,10 +25,10 @@ main = do
 
 process :: String -> Maybe String
 process
---	 =  render
-	 = (return . show)
---	<=< dechlorinate
-	<=< dissolve
+	 =  render
+--	 = (return . show)
+	<=< dechlorinate
+--	<=< dissolve
 	<=< chlorinate
 	<=< parse
 	<=< tokenize

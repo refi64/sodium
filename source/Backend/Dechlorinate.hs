@@ -40,9 +40,7 @@ transformName :: S.Name -> D.Name
 transformName = \case
 	S.NameMain -> "main"
 	S.Name cs  -> cs
-
-hookName :: D.Name -> D.Name -> D.Name
-hookName u v = if u == v then v ++ "_" else v
+	S.NameUnique name -> transformName name ++ "_"
 
 transformType :: S.ClType -> D.HsType
 transformType = \case
@@ -89,15 +87,15 @@ transformStatement (varStates, modStatements) = \case
 			(transformName name)
 			(VarState t j)
 			varStates
-		modExpr <- transformExpr id varStates expr
+		modExpr <- transformExpr varStates expr
 		let modStatement = D.DoLet (unvzName (transformName name) j) modExpr
 		return (varStates', modStatement:modStatements)
 	S.ForStatement (S.ForCycle [accName] iterName exprFrom exprTo body) -> do
 		VarState t i <- M.lookup (transformName accName) varStates
 		let j = succ i
 		let varStates' = M.insert (transformName accName) (VarState t j) varStates
-		modExprFrom <- transformExpr id varStates exprFrom
-		modExprTo <- transformExpr id varStates exprTo
+		modExprFrom <- transformExpr varStates exprFrom
+		modExprTo <- transformExpr varStates exprTo
 		let modRange = D.Range modExprFrom modExprTo
 		let varStates''
 			= M.insert (transformName accName)  (VarState t 0)
@@ -128,8 +126,8 @@ transformExecute varStates = \case
 		[] -> return $ D.Beta (D.Access "putStrLn") (D.Quote "")
 		exprs -> do
 			modExprs <- forM exprs $ \case
-				S.LValue name -> transformExpr id varStates (S.Access name)
-				S.RValue expr -> transformExpr id varStates expr
+				S.LValue name -> transformExpr varStates (S.Access name)
+				S.RValue expr -> transformExpr varStates expr
 			return
 				$ D.Beta (D.Access "putStrLn")
 				$ foldr1 (D.Binary "++")
@@ -137,17 +135,16 @@ transformExecute varStates = \case
 				$ modExprs
 
 transformFunc :: S.Func S.Body -> Maybe D.Def
-transformFunc (S.Func S.NameMain params S.ClVoid clBody)
+transformFunc (S.Func S.NameMain params S.ClVoid S.NameMain clBody)
 	 = do
 		guard $ M.null params
 		modBody <- transformBody M.empty Nothing clBody
 		return $ D.ValueDef "main" [] modBody
-transformFunc (S.Func name params clType clBody)
+transformFunc (S.Func name params retType retName clBody)
 	 =  D.ValueDef (transformName name) paramNames
 	<$> transformPureBody
-		(hookName (transformName name))
 		varStates
-		(transformName name)
+		(transformName retName)
 		clBody
 	where
 		paramNames
@@ -158,25 +155,25 @@ transformFunc (S.Func name params clType clBody)
 			= M.union
 				(uncurry M.singleton retVarState)
 				(transformVars params)
-		retVarState = initVarState name clType
+		retVarState = initVarState retName retType
 
-transformPureBody :: (D.Name -> D.Name) -> VarStates -> D.Name -> S.Body -> Maybe D.Expression
-transformPureBody funcHookName varStatesExternal name (S.Body vars statements) = do
+transformPureBody :: VarStates -> D.Name -> S.Body -> Maybe D.Expression
+transformPureBody varStatesExternal name (S.Body vars statements) = do
 	let varStates = M.union (transformVars vars) varStatesExternal
-	(varStates', valueDefs) <- foldM (transformPureStatement funcHookName) (varStates, []) statements
+	(varStates', valueDefs) <- foldM (transformPureStatement) (varStates, []) statements
 	retValue <- do
 		VarState t i <- M.lookup name varStates'
-		return $ D.Access (unvzName (funcHookName name) i)
+		return $ D.Access (unvzName (name) i)
 	return $ D.PureLet valueDefs retValue
 
-transformPureStatement :: (D.Name -> D.Name) -> (VarStates, [D.ValueDef]) -> S.Statement -> Maybe (VarStates, [D.ValueDef])
-transformPureStatement funcHookName (varStates, valueDefs) = \case
+transformPureStatement :: (VarStates, [D.ValueDef]) -> S.Statement -> Maybe (VarStates, [D.ValueDef])
+transformPureStatement (varStates, valueDefs) = \case
 	S.Assign name expr -> do
 		VarState t i <- M.lookup (transformName name) varStates
 		let j = succ i
 		let varStates' = M.insert (transformName name) (VarState t j) varStates
-		modExpr <- transformExpr funcHookName varStates expr
-		let valueDef = D.ValueDef (unvzName (funcHookName (transformName name)) j) [] modExpr
+		modExpr <- transformExpr varStates expr
+		let valueDef = D.ValueDef (unvzName ((transformName name)) j) [] modExpr
 		return (varStates', valueDef:valueDefs)
 	S.ForStatement (S.ForCycle [accName] iterName exprFrom exprTo body) -> do
 		VarState t i <- M.lookup (transformName accName) varStates
@@ -185,28 +182,27 @@ transformPureStatement funcHookName (varStates, valueDefs) = \case
 			(transformName accName)
 			(VarState t j)
 			varStates
-		modExprFrom <- transformExpr funcHookName varStates exprFrom
-		modExprTo <- transformExpr funcHookName varStates exprTo
+		modExprFrom <- transformExpr varStates exprFrom
+		modExprTo <- transformExpr varStates exprTo
 		let modRange = D.Range modExprFrom modExprTo
 		let varStates''
 			= M.insert (transformName accName)  (VarState t 0)
 			$ M.insert (transformName iterName) (VarState (D.HsType "Integer") 0)
 			$ varStates
 		modBody <- transformPureBody
-			funcHookName
 			varStates''
 			(transformName accName)
 			body
 		let valueDef = D.ValueDef
-			(unvzName (funcHookName (transformName accName)) j) []
+			(unvzName ((transformName accName)) j) []
 			(beta
 				[ D.Access "foldl"
 				, D.Lambda
-					[ funcHookName (transformName accName)
+					[ (transformName accName)
 					, transformName iterName
 					]
 					modBody
-				, D.Access (unvzName (funcHookName (transformName accName)) i)
+				, D.Access (unvzName ((transformName accName)) i)
 				, modRange
 				]
 			)
@@ -227,19 +223,19 @@ showNoString varStates = \case
 			_ -> D.Beta (D.Access "show") (D.Access name)
 	a -> a -- TODO: bypass any D.Expression to transform underlying D.Access
 
-transformExpr :: (D.Name -> D.Name) -> VarStates -> S.Expression -> Maybe D.Expression
-transformExpr funcHookName varStates = \case
+transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
+transformExpr varStates = \case
 	S.Primary (S.Quote  cs) -> return $ D.Quote cs
 	S.Primary (S.Number cs) -> return $ D.Number cs
 	S.Access name -> do
 		VarState t i <- M.lookup (transformName name) varStates
-		return $ D.Access (unvzName (funcHookName (transformName name)) i)
+		return $ D.Access (unvzName ((transformName name)) i)
 	S.Call name exprs -> do
-		modExprs <- mapM (transformExpr funcHookName varStates) exprs
+		modExprs <- mapM (transformExpr varStates) exprs
 		return $ beta (D.Access (transformName name) : modExprs)
 	S.Binary op x y -> do
-		modX <- transformExpr funcHookName varStates x
-		modY <- transformExpr funcHookName varStates y
+		modX <- transformExpr varStates x
+		modY <- transformExpr varStates y
 		modOp <- case op of
 			S.OpAdd -> return "+"
 			S.OpSubtract -> return "-"
