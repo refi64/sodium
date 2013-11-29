@@ -6,6 +6,7 @@ module Chloride.Vectorizer
 
 import Control.Monad
 import Control.Applicative
+import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Chloride.Chloride
@@ -26,8 +27,12 @@ vectorizeBody closure body = do
 	let indices = M.union
 		(initIndices (_bodyVars body))
 		closure
-	(vecStatements, indices') <- flip runStateT indices
-		$ mapM vectorizeStatement (_bodyStatements body)
+	let vectorizeStatements = mapM
+		vectorizeStatement
+		(_bodyStatements body)
+	(vecStatements, indices') <- runStateT
+		vectorizeStatements
+		indices
 	return $ VecBody
 		(_bodyVars body)
 		vecStatements
@@ -36,40 +41,37 @@ vectorizeBody closure body = do
 vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
-		indices <- get
-		index <- lift $ M.lookup name indices
-		vecExpr <- lift $ vectorizeExpression indices expr
+		vecExpr <- readerToState $ vectorizeExpression expr
+		index <- lift . M.lookup name =<< get
 		let index' = succ index
-		put $ M.insert name index' indices
+		modify $ M.insert name index'
 		return $ VecAssign name index' vecExpr
 	Execute name args -> do
-		indices <- get
 		let vectorizeArg = \case
-			LValue name -> return (VecLValue name)
-			RValue expr -> VecRValue <$> vectorizeExpression indices expr
-		vecArgs <- lift $ mapM vectorizeArg args
+			LValue name -> VecLValue <$> return name
+			RValue expr -> VecRValue <$> vectorizeExpression expr
+		vecArgs <- readerToState $ mapM vectorizeArg args
 		let sidenames = [sidename | VecLValue sidename <- vecArgs]
-		put
-			$ flip M.mapWithKey indices
+		modify
+			$ M.mapWithKey
 			$ \name index ->
 				if name `elem` sidenames
 					then succ index
 					else index
 		return $ VecExecute name vecArgs
 	ForStatement forCycle -> do
-		indices <- get
-		vecFrom <- lift $ vectorizeExpression indices
-			(_forFrom forCycle)
-		vecTo <- lift $ vectorizeExpression indices
-			(_forTo forCycle)
+		vecFrom <- readerToState $ vectorizeExpression (_forFrom forCycle)
+		vecTo <- readerToState $ vectorizeExpression (_forTo forCycle)
+		-- TODO: wrap inner names
+		-- in NameUnique to resolve name conflicts
 		let closure
 			= M.fromList
 			$ map (,1)
 			$ _forName forCycle
 			: _forClosure forCycle
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
-		put
-			$ flip M.mapWithKey indices
+		modify
+			$ M.mapWithKey
 			$ \name index ->
 				if name `elem` (_forClosure forCycle)
 					then succ index
@@ -82,20 +84,27 @@ vectorizeStatement = \case
 				vecFrom vecTo
 				vecBody
 
-vectorizeExpression :: Indices -> Expression -> Maybe VecExpression
-vectorizeExpression indices = \case
+vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
+vectorizeExpression = \case
 	Quote  cs -> return $ VecQuote  cs
 	Number cs -> return $ VecNumber cs
 	Access name -> do
-		index <- M.lookup name indices
+		index <- lift . M.lookup name =<< ask
 		return $ VecAccess name index
 	Call name exprs -> do
-		vecExprs <- mapM (vectorizeExpression indices) exprs
+		vecExprs <- mapM vectorizeExpression exprs
 		return $ VecCall name vecExprs
 	Binary op expr1 expr2 -> do
-		vecExpr1 <- vectorizeExpression indices expr1
-		vecExpr2 <- vectorizeExpression indices expr2
+		vecExpr1 <- vectorizeExpression expr1
+		vecExpr2 <- vectorizeExpression expr2
 		return $ VecBinary op vecExpr1 vecExpr2
+
+readerToState :: Monad m => ReaderT x m a -> StateT x m a
+readerToState reader
+	= StateT
+	$ \x -> do
+		a <- runReaderT reader x
+		return (a, x)
 
 initIndices :: Vars -> Indices
 initIndices = M.map (const 0)
