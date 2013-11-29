@@ -48,10 +48,10 @@ vectorizeStatement = \case
 		return $ VecAssign name index' vecExpr
 	Execute name args -> do
 		let vectorizeArg = \case
-			LValue name -> VecLValue <$> return name
-			RValue expr -> VecRValue <$> vectorizeExpression expr
+			LValue name -> LValue <$> return name
+			RValue expr -> RValue <$> vectorizeExpression expr
 		vecArgs <- readerToState $ mapM vectorizeArg args
-		let sidenames = [sidename | VecLValue sidename <- vecArgs]
+		let sidenames = [sidename | LValue sidename <- vecArgs]
 		modify
 			$ M.mapWithKey
 			$ \name index ->
@@ -86,8 +86,7 @@ vectorizeStatement = \case
 
 vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
 vectorizeExpression = \case
-	Quote  cs -> return $ VecQuote  cs
-	Number cs -> return $ VecNumber cs
+	Primary a -> return $ VecPrimary a
 	Access name -> do
 		index <- lift . M.lookup name =<< ask
 		return $ VecAccess name index

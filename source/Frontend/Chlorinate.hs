@@ -86,9 +86,11 @@ chlorinateExpr = \case
 		<*> mapM chlorinateExpr exprs
 	S.Number cs
 		-> return
+		 $ D.Primary
 		 $ D.Number cs
 	S.Quote cs
 		-> return
+		 $ D.Primary
 		 $ D.Quote cs
 	S.Binary op x y
 		 -> D.Binary

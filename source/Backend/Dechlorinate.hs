@@ -122,7 +122,7 @@ transformStatement (varStates, modStatements) = \case
 			)
 		return (varStates', modStatement:modStatements)
 
-transformExecute :: VarStates -> D.Name -> [S.Argument] -> Maybe D.Expression
+transformExecute :: VarStates -> D.Name -> [S.Argument S.Expression] -> Maybe D.Expression
 transformExecute varStates = \case
 	"writeln" -> \case
 		[] -> return $ D.Beta (D.Access "putStrLn") (D.Quote "")
@@ -229,8 +229,8 @@ showNoString varStates = \case
 
 transformExpr :: (D.Name -> D.Name) -> VarStates -> S.Expression -> Maybe D.Expression
 transformExpr funcHookName varStates = \case
-	S.Quote cs -> return $ D.Quote cs
-	S.Number cs -> return $ D.Number cs
+	S.Primary (S.Quote  cs) -> return $ D.Quote cs
+	S.Primary (S.Number cs) -> return $ D.Number cs
 	S.Access name -> do
 		VarState t i <- M.lookup (transformName name) varStates
 		return $ D.Access (unvzName (funcHookName (transformName name)) i)

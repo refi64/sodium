@@ -30,14 +30,14 @@ data Body
 	, _bodyStatements :: [Statement]
 	} deriving (Show)
 
-data Argument
+data Argument e
 	= LValue Name
-	| RValue Expression
+	| RValue e
 	deriving (Show)
 
 data Statement
 	= Assign Name Expression
-	| Execute Name [Argument]
+	| Execute Name [Argument Expression]
 	| ForStatement ForCycle
 	deriving (Show)
 
@@ -53,8 +53,7 @@ data ForCycle
 data Expression
 	= Access Name
 	| Call Name [Expression]
-	| Number String
-	| Quote String
+	| Primary Literal
 	| Binary Operator Expression Expression
 	deriving (Show)
 
@@ -65,14 +64,9 @@ data VecBody
 	, _vecBodyIndices :: Indices
 	} deriving (Show)
 
-data VecArgument
-	= VecLValue Name
-	| VecRValue VecExpression
-	deriving (Show)
-
 data VecStatement
 	= VecAssign Name Integer VecExpression
-	| VecExecute Name [VecArgument]
+	| VecExecute Name [Argument VecExpression]
 	| VecForStatement VecForCycle
 	deriving (Show)
 
@@ -88,11 +82,18 @@ data VecForCycle
 data VecExpression
 	= VecAccess Name Integer
 	| VecCall Name [VecExpression]
-	| VecNumber String
-	| VecQuote String
+	| VecPrimary Literal
 	| VecBinary Operator VecExpression VecExpression
 	deriving (Show)
 
+data Literal
+	= Number String
+	| Quote  String
+	deriving (Show)
+
+-- TODO: Operator is basically a
+-- function name, so Binary and Call
+-- can be merged
 data Operator
 	= OpAdd
 	| OpSubtract
