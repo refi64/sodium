@@ -13,11 +13,10 @@ import Chloride.Chloride
 
 vectorize :: Func Body -> Maybe (Func VecBody)
 vectorize func = do
-	vecBody <- vectorizeBody
-		( M.singleton (_funcRetName func) 0
-		`M.union` initIndices (_funcParams func)
-		)
-		(_funcBody func)
+	let closure = M.union
+			(M.singleton (_funcRetName func) 0)
+			(initIndices (_funcParams func))
+	vecBody <- vectorizeBody closure (_funcBody func)
 	return $ func { _funcBody = vecBody }
 
 vectorizeBody :: Indices -> Body -> Maybe VecBody
@@ -40,7 +39,9 @@ vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
 		vecExpr <- readerToState $ vectorizeExpression expr
-		index <- lift . M.lookup name =<< get
+		index <- do
+			indicies <- get
+			lift $ M.lookup name indicies
 		let index' = succ index
 		modify $ M.insert name index'
 		return $ VecAssign name index' vecExpr
@@ -49,13 +50,7 @@ vectorizeStatement = \case
 			LValue name -> LValue <$> return name
 			RValue expr -> RValue <$> vectorizeExpression expr
 		vecArgs <- readerToState $ mapM vectorizeArg args
-		let sidenames = [sidename | LValue sidename <- vecArgs]
-		modify
-			$ M.mapWithKey
-			$ \name index ->
-				if name `elem` sidenames
-					then succ index
-					else index
+		registerIndexUpdates [sidename | LValue sidename <- vecArgs]
 		return $ VecExecute name vecArgs
 	ForStatement forCycle -> do
 		vecFrom <- readerToState $ vectorizeExpression (_forFrom forCycle)
@@ -68,12 +63,7 @@ vectorizeStatement = \case
 			$ _forName forCycle
 			: _forClosure forCycle
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
-		modify
-			$ M.mapWithKey
-			$ \name index ->
-				if name `elem` (_forClosure forCycle)
-					then succ index
-					else index
+		registerIndexUpdates (_forClosure forCycle)
 		return
 			$ VecForStatement
 			$ VecForCycle
@@ -86,7 +76,9 @@ vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
 vectorizeExpression = \case
 	Primary a -> return $ VecPrimary a
 	Access name -> do
-		index <- lift . M.lookup name =<< ask
+		index <- do
+			indicies <- ask
+			lift $ M.lookup name indicies
 		return $ VecAccess name index
 	Call name exprs -> do
 		vecExprs <- mapM vectorizeExpression exprs
@@ -102,6 +94,14 @@ readerToState reader
 	$ \x -> do
 		a <- runReaderT reader x
 		return (a, x)
+
+registerIndexUpdates names
+	= modify
+	$ M.mapWithKey
+	$ \name index ->
+		if name `elem` names
+			then succ index
+			else index
 
 initIndices :: Vars -> Indices
 initIndices = M.map (const 0)
