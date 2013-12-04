@@ -85,7 +85,7 @@ dechlorinateStatement vars = \case
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
 		return $ D.DoLet (dechlorinateName name i) hsExpr
-	S.VecForStatement (S.VecForCycle argIndices retIndices name exprFrom exprTo clBody) -> do
+	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
 		hsRange
 			<-  D.Range
 			<$> dechlorinateExpression exprFrom
@@ -153,7 +153,7 @@ dechlorinatePureStatement vars = \case
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
 		return $ D.ValueDef (D.PatFunc (dechlorinateName name i) []) hsExpr
-	S.VecForStatement (S.VecForCycle argIndices retIndices name exprFrom exprTo clBody) -> do
+	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
 		hsRange
 			<-  D.Range
 			<$> dechlorinateExpression exprFrom

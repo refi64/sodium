@@ -83,19 +83,17 @@ vectorizeStatement = \case
 			: _forClosure forCycle
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
 		registerIndexUpdates (_forClosure forCycle)
+		let vecForCycle = VecForCycle
+			argIndices
+			(_forName forCycle)
+			vecFrom vecTo
+			vecBody
 		retIndices <- do
 			indices <- get
 			return $ M.filterWithKey
 				(\name _ -> name `elem` (_forClosure forCycle))
 				indices
-		return
-			$ VecForStatement
-			$ VecForCycle
-				argIndices
-				retIndices
-				(_forName forCycle)
-				vecFrom vecTo
-				vecBody
+		return $ VecForStatement retIndices vecForCycle
 
 vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
 vectorizeExpression = \case

@@ -73,13 +73,12 @@ data VecArgument
 data VecStatement
 	= VecAssign Name Integer VecExpression
 	| VecExecute Name [VecArgument]
-	| VecForStatement VecForCycle
+	| VecForStatement Indices VecForCycle
 	deriving (Show)
 
 data VecForCycle
 	= VecForCycle
 	{ _vecForArgIndices :: Indices
-	, _vecForRetIndices :: Indices
 	, _vecForName :: Name
 	, _vecForFrom :: VecExpression
 	, _vecForTo :: VecExpression
