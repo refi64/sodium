@@ -6,32 +6,19 @@ module Backend.Dechlorinate
 
 import Data.List (genericReplicate)
 import Control.Monad (forM, foldM, guard)
-import Control.Applicative ((<$>))
+import Control.Applicative
 import qualified Data.Map as M
 -- S for Src, D for Dest
 import qualified Chloride.Chloride as S
 import qualified  Backend.Program  as D
 
-dechlorinate = transform
-
-transform :: S.Program -> Maybe D.Program
-transform (S.Program funcs) = do
-	funcDefs <- mapM transformFunc funcs
+dechlorinate :: S.VecProgram -> Maybe D.Program
+dechlorinate (S.VecProgram funcs) = do
+	funcDefs <- mapM dechlorinateFunc funcs
 	return $ D.Program funcDefs ["Control.Monad"]
 
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState
-
-initVarState name clType =
-	( transformName name
-	, VarState (transformType clType) (-1)
-	)
-
-transformVars :: S.Vars -> VarStates
-transformVars
-	= M.fromList
-	. map (uncurry initVarState)
-	. M.toList
 
 -- WARNING: Name handling is broken. Beware, because
 -- strange errors may appear in generated code.
@@ -42,206 +29,180 @@ transformName = \case
 	S.Name cs  -> cs
 	S.NameUnique name -> transformName name ++ "_"
 
-transformType :: S.ClType -> D.HsType
-transformType = \case
+dechlorinateName :: S.Name -> Integer -> D.Name
+dechlorinateName name i
+	| i > 0 = transformName name ++ genericReplicate (pred i) '\''
+	| otherwise = error $ "Accessing uninitialized variable " ++ show name
+
+dechlorinateType :: S.ClType -> D.HsType
+dechlorinateType = \case
 	S.ClInteger -> D.HsType "Integer"
 	S.ClDouble  -> D.HsType "Double"
 	S.ClBoolean -> D.HsType "Boolean"
 	S.ClString  -> D.HsType "String"
 	S.ClVoid -> D.HsUnit
 
-transformBody :: VarStates -> Maybe D.Name -> S.Body -> Maybe D.Expression
-transformBody varStatesExternal mName (S.Body vars statements) = do
-	let varStates = M.union (transformVars vars) varStatesExternal
-	(varStates', modStatements) <- foldM transformStatement (varStates, []) statements
-	modStatement <- case mName of
-		Nothing -> return $ D.DoExecute returnUnitStatement
-		Just name -> do
-			VarState t i <- M.lookup name varStates'
-			return $ D.DoExecute (beta [D.Access "return", D.Access (unvzName name i)])
-	return $ D.DoExpression (reverse (modStatement:modStatements))
+dechlorinateBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
+dechlorinateBody externalVars rets (S.VecBody vars statements indices) = do
+	let vars' = M.union vars externalVars
+	hsStatements <- mapM (dechlorinateStatement vars') statements
+	let hsStatement
+		= D.DoExecute
+		$ D.Beta (D.Access "return")
+		$ D.Tuple
+		$ map (D.Access . uncurry dechlorinateName)
+		$ M.toList
+		$ M.filterWithKey (\name _ -> name `elem` rets)
+		$ indices
+	return $ D.DoExpression (hsStatements ++ [hsStatement])
 
-transformStatement :: (VarStates, [D.DoStatement]) -> S.Statement -> Maybe (VarStates, [D.DoStatement])
-transformStatement (varStates, modStatements) = \case
-	S.Execute (S.Name "readln") [S.LValue name] -> do
-		VarState t i <- M.lookup (transformName name) varStates
-		let j = succ i
-		let varStates' = M.insert (transformName name) (VarState t j) varStates
-		let modStatement = D.DoBind
-			(unvzName (transformName name) j)
-			(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO t)
-		return (varStates', modStatement:modStatements)
-	S.Execute name exprs -> do
-		modExpr <- transformExecute
-			varStates
-			(transformName name)
-			exprs
-		let modStatement = D.DoExecute modExpr
-		return (varStates, modStatement:modStatements)
-	S.Assign name expr -> do
-		VarState t i <- M.lookup
-			(transformName name)
-			varStates
-		let j = succ i
-		let varStates' = M.insert
-			(transformName name)
-			(VarState t j)
-			varStates
-		modExpr <- transformExpr varStates expr
-		let modStatement = D.DoLet (unvzName (transformName name) j) modExpr
-		return (varStates', modStatement:modStatements)
-	S.ForStatement (S.ForCycle [accName] iterName exprFrom exprTo body) -> do
-		VarState t i <- M.lookup (transformName accName) varStates
-		let j = succ i
-		let varStates' = M.insert (transformName accName) (VarState t j) varStates
-		modExprFrom <- transformExpr varStates exprFrom
-		modExprTo <- transformExpr varStates exprTo
-		let modRange = D.Range modExprFrom modExprTo
-		let varStates''
-			= M.insert (transformName accName)  (VarState t 0)
-			$ M.insert (transformName iterName) (VarState (D.HsType "Integer") 0)
-			$ varStates
-		modBody <- transformBody
-			varStates''
-			(Just (transformName accName))
-			body
-		let modStatement = D.DoBind
-			(unvzName (transformName accName) j)
+dechlorinateStatement :: S.Vars -> S.VecStatement -> Maybe D.DoStatement
+dechlorinateStatement vars = \case
+	S.VecExecute (S.Name "readln") [S.VecLValue name i] -> do
+		t <- M.lookup name vars
+		return $ D.DoBind
+			-- (succ i) is a DIRTY HACK!!! Remove it
+			-- as soon as proper typechecking is
+			-- implemented
+			(D.PatTuple [dechlorinateName name (succ i)])
+			(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO (dechlorinateType t))
+	S.VecExecute (S.Name "writeln") args -> case args of
+		[] -> return $ D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
+		args' -> do
+			hsExprs <- forM args' $ \case
+				S.VecLValue name i -> do
+					t <- M.lookup name vars
+					let mShow
+						| t == S.ClString = id
+						| otherwise = D.Beta (D.Access "show")
+					mShow <$> dechlorinateExpression (S.VecAccess name i)
+				S.VecRValue expr -> dechlorinateExpression expr
+			return
+				$ D.DoExecute
+				$ D.Beta (D.Access "putStrLn")
+				$ foldr1 (D.Binary "++")
+				$ hsExprs
+	S.VecAssign name i expr -> do
+		hsExpr <- dechlorinateExpression expr
+		return $ D.DoLet (dechlorinateName name i) hsExpr
+	S.VecForStatement (S.VecForCycle argIndices retIndices name exprFrom exprTo clBody) -> do
+		hsRange
+			<-  D.Range
+			<$> dechlorinateExpression exprFrom
+			<*> dechlorinateExpression exprTo
+		hsBody <- dechlorinateBody vars (M.keys argIndices) clBody
+		let hsArgExpr
+			= D.Tuple
+			$ map D.Access
+			$ map
+				(uncurry dechlorinateName)
+				(M.toList argIndices)
+		let hsRetPat
+			= D.PatTuple
+			$ map
+				(uncurry dechlorinateName)
+				(M.toList retIndices)
+		return $ D.DoBind
+			hsRetPat
 			(beta
 				[ D.Access "foldM"
 				, D.Lambda
-					[ transformName accName
-					, transformName iterName
+					[ D.PatTuple
+						$ map transformName
+						$ M.keys retIndices
+					, D.PatTuple [transformName name]
 					]
-					modBody
-				, D.Access (unvzName (transformName accName) i)
-				, modRange
+					hsBody
+				, hsArgExpr
+				, hsRange
 				]
 			)
-		return (varStates', modStatement:modStatements)
+	st -> error (show st)
 
-transformExecute :: VarStates -> D.Name -> [S.Argument S.Expression] -> Maybe D.Expression
-transformExecute varStates = \case
-	"writeln" -> \case
-		[] -> return $ D.Beta (D.Access "putStrLn") (D.Quote "")
-		exprs -> do
-			modExprs <- forM exprs $ \case
-				S.LValue name -> transformExpr varStates (S.Access name)
-				S.RValue expr -> transformExpr varStates expr
-			return
-				$ D.Beta (D.Access "putStrLn")
-				$ foldr1 (D.Binary "++")
-				$ map (showNoString varStates)
-				$ modExprs
-
-transformFunc :: S.Func S.Body -> Maybe D.Def
-transformFunc (S.Func S.NameMain params S.ClVoid S.NameMain clBody)
-	 = do
+dechlorinateFunc :: S.Func S.VecBody -> Maybe D.Def
+dechlorinateFunc (S.Func S.NameMain params S.ClVoid S.NameMain clBody)
+	= do
 		guard $ M.null params
-		modBody <- transformBody M.empty Nothing clBody
-		return $ D.ValueDef "main" [] modBody
-transformFunc (S.Func name params retType retName clBody)
-	 =  D.ValueDef (transformName name) paramNames
-	<$> transformPureBody
-		varStates
-		(transformName retName)
-		clBody
+		hsBody <- dechlorinateBody M.empty [] clBody
+		return $ D.ValueDef (D.PatFunc "main" []) hsBody
+dechlorinateFunc (S.Func name params retType retName clBody)
+	 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
+	<$> dechlorinatePureBody vars [retName] clBody
 	where
 		paramNames
 			= map transformName
 			$ M.keys
 			$ params
-		varStates
-			= M.union
-				(uncurry M.singleton retVarState)
-				(transformVars params)
-		retVarState = initVarState retName retType
+		vars = M.union retVars params
+		retVars = M.singleton retName retType
 
-transformPureBody :: VarStates -> D.Name -> S.Body -> Maybe D.Expression
-transformPureBody varStatesExternal name (S.Body vars statements) = do
-	let varStates = M.union (transformVars vars) varStatesExternal
-	(varStates', valueDefs) <- foldM (transformPureStatement) (varStates, []) statements
-	retValue <- do
-		VarState t i <- M.lookup name varStates'
-		return $ D.Access (unvzName (name) i)
-	return $ D.PureLet valueDefs retValue
+dechlorinatePureBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
+dechlorinatePureBody externalVars rets (S.VecBody vars statements indices) = do
+	let vars' = M.union vars externalVars
+	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
+	let hsRetValue
+		= D.Tuple
+		$ map (D.Access . uncurry dechlorinateName)
+		$ M.toList
+		$ M.filterWithKey (\name _ -> name `elem` rets)
+		$ indices
+	return $ D.PureLet hsValueDefs hsRetValue
 
-transformPureStatement :: (VarStates, [D.ValueDef]) -> S.Statement -> Maybe (VarStates, [D.ValueDef])
-transformPureStatement (varStates, valueDefs) = \case
-	S.Assign name expr -> do
-		VarState t i <- M.lookup (transformName name) varStates
-		let j = succ i
-		let varStates' = M.insert (transformName name) (VarState t j) varStates
-		modExpr <- transformExpr varStates expr
-		let valueDef = D.ValueDef (unvzName ((transformName name)) j) [] modExpr
-		return (varStates', valueDef:valueDefs)
-	S.ForStatement (S.ForCycle [accName] iterName exprFrom exprTo body) -> do
-		VarState t i <- M.lookup (transformName accName) varStates
-		let j = succ i
-		let varStates' = M.insert
-			(transformName accName)
-			(VarState t j)
-			varStates
-		modExprFrom <- transformExpr varStates exprFrom
-		modExprTo <- transformExpr varStates exprTo
-		let modRange = D.Range modExprFrom modExprTo
-		let varStates''
-			= M.insert (transformName accName)  (VarState t 0)
-			$ M.insert (transformName iterName) (VarState (D.HsType "Integer") 0)
-			$ varStates
-		modBody <- transformPureBody
-			varStates''
-			(transformName accName)
-			body
-		let valueDef = D.ValueDef
-			(unvzName ((transformName accName)) j) []
+dechlorinatePureStatement :: S.Vars -> S.VecStatement -> Maybe D.ValueDef
+dechlorinatePureStatement vars = \case
+	S.VecAssign name i expr -> do
+		hsExpr <- dechlorinateExpression expr
+		return $ D.ValueDef (D.PatFunc (dechlorinateName name i) []) hsExpr
+	S.VecForStatement (S.VecForCycle argIndices retIndices name exprFrom exprTo clBody) -> do
+		hsRange
+			<-  D.Range
+			<$> dechlorinateExpression exprFrom
+			<*> dechlorinateExpression exprTo
+		hsBody <- dechlorinatePureBody vars (M.keys argIndices) clBody
+		let hsArgExpr
+			= D.Tuple
+			$ map D.Access
+			$ map
+				(uncurry dechlorinateName)
+				(M.toList argIndices)
+		let hsRetPat
+			= D.PatTuple
+			$ map
+				(uncurry dechlorinateName)
+				(M.toList retIndices)
+		return $ D.ValueDef
+			hsRetPat
 			(beta
 				[ D.Access "foldl"
 				, D.Lambda
-					[ (transformName accName)
-					, transformName iterName
+					[ D.PatTuple
+						$ map transformName
+						$ M.keys retIndices
+					, D.PatTuple [transformName name]
 					]
-					modBody
-				, D.Access (unvzName ((transformName accName)) i)
-				, modRange
+					hsBody
+				, hsArgExpr
+				, hsRange
 				]
 			)
-		return (varStates', valueDef:valueDefs)
+	st -> error (show st)
 
 beta = foldl1 D.Beta
 
-unvzName name i = name ++ genericReplicate i '\''
-unvzTable = M.fromList . map f . M.toList where
-	f (name, VarState t i) = (unvzName name i, t)
-
-showNoString :: VarStates -> D.Expression -> D.Expression
-showNoString varStates = \case
-	D.Access name -> case M.lookup name (unvzTable varStates) of
-		Nothing -> error "showNoString: undefined"
-		Just t -> case t of
-			D.HsType "String" -> D.Access name
-			_ -> D.Beta (D.Access "show") (D.Access name)
-	a -> a -- TODO: bypass any D.Expression to transform underlying D.Access
-
-transformExpr :: VarStates -> S.Expression -> Maybe D.Expression
-transformExpr varStates = \case
-	S.Primary (S.Quote  cs) -> return $ D.Quote cs
-	S.Primary (S.Number cs) -> return $ D.Number cs
-	S.Access name -> do
-		VarState t i <- M.lookup (transformName name) varStates
-		return $ D.Access (unvzName ((transformName name)) i)
-	S.Call name exprs -> do
-		modExprs <- mapM (transformExpr varStates) exprs
-		return $ beta (D.Access (transformName name) : modExprs)
-	S.Binary op x y -> do
-		modX <- transformExpr varStates x
-		modY <- transformExpr varStates y
-		modOp <- case op of
+dechlorinateExpression :: S.VecExpression -> Maybe D.Expression
+dechlorinateExpression = \case
+	S.VecPrimary (S.Quote  cs) -> return $ D.Quote cs
+	S.VecPrimary (S.Number cs) -> return $ D.Number cs
+	S.VecAccess name i -> return $ D.Access (dechlorinateName name i)
+	S.VecCall name exprs -> do
+		hsExprs <- mapM dechlorinateExpression exprs
+		return $ beta (D.Access (transformName name) : hsExprs)
+	S.VecBinary op expr1 expr2 -> do
+		hsExpr1 <- dechlorinateExpression expr1
+		hsExpr2 <- dechlorinateExpression expr2
+		hsOp <- case op of
 			S.OpAdd -> return "+"
 			S.OpSubtract -> return "-"
 			S.OpMultiply -> return "*"
 			S.OpDivide -> return "/"
-		return $ D.Binary modOp modX modY
-
-returnUnitStatement :: D.Expression
-returnUnitStatement = D.Beta (D.Access "return") (D.Tuple [])
+		return $ D.Binary hsOp hsExpr1 hsExpr2

@@ -15,14 +15,14 @@ vectorize :: Func Body -> Maybe (Func VecBody)
 vectorize func = do
 	let closure = M.union
 			(M.singleton (_funcRetName func) 0)
-			(initIndices (_funcParams func))
+			(initIndices 1 (_funcParams func))
 	vecBody <- vectorizeBody closure (_funcBody func)
 	return $ func { _funcBody = vecBody }
 
 vectorizeBody :: Indices -> Body -> Maybe VecBody
 vectorizeBody closure body = do
 	let indices = M.union
-		(initIndices (_bodyVars body))
+		(initIndices 0 (_bodyVars body))
 		closure
 	let vectorizeStatements = mapM
 		vectorizeStatement
@@ -33,26 +33,45 @@ vectorizeBody closure body = do
 	return $ VecBody
 		(_bodyVars body)
 		vecStatements
-		indices'
+		-- Not sure if this filter is a hack...
+		(M.filter (>0) indices')
+
+vectorizeArgument :: Argument -> ReaderT Indices Maybe VecArgument
+vectorizeArgument = \case
+	LValue name -> do
+		index <- do
+			indices <- ask
+			lift $ M.lookup name indices
+		return $ VecLValue name index
+	RValue expr -> VecRValue <$> vectorizeExpression expr
 
 vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
 		vecExpr <- readerToState $ vectorizeExpression expr
 		index <- do
-			indicies <- get
-			lift $ M.lookup name indicies
+			indices <- get
+			lift $ M.lookup name indices
 		let index' = succ index
 		modify $ M.insert name index'
 		return $ VecAssign name index' vecExpr
 	Execute name args -> do
-		let vectorizeArg = \case
-			LValue name -> LValue <$> return name
-			RValue expr -> RValue <$> vectorizeExpression expr
-		vecArgs <- readerToState $ mapM vectorizeArg args
-		registerIndexUpdates [sidename | LValue sidename <- vecArgs]
+		vecArgs <- readerToState $ mapM vectorizeArgument args
+		-- TODO: typecheck in order to find out
+		-- what lvalues can actually get changed
+		-- HACK: for now we check if the procedure
+		-- is ReadLn, because only ReadLn is allowed
+		-- to change its LValues
+		if name == Name "readln"
+			then registerIndexUpdates [sidename | VecLValue sidename _ <- vecArgs]
+			else return ()
 		return $ VecExecute name vecArgs
 	ForStatement forCycle -> do
+		argIndices <- do
+			indices <- get
+			return $ M.filterWithKey
+				(\name _ -> name `elem` (_forClosure forCycle))
+				indices
 		vecFrom <- readerToState $ vectorizeExpression (_forFrom forCycle)
 		vecTo <- readerToState $ vectorizeExpression (_forTo forCycle)
 		-- TODO: wrap inner names
@@ -64,10 +83,16 @@ vectorizeStatement = \case
 			: _forClosure forCycle
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
 		registerIndexUpdates (_forClosure forCycle)
+		retIndices <- do
+			indices <- get
+			return $ M.filterWithKey
+				(\name _ -> name `elem` (_forClosure forCycle))
+				indices
 		return
 			$ VecForStatement
 			$ VecForCycle
-				(_forClosure forCycle)
+				argIndices
+				retIndices
 				(_forName forCycle)
 				vecFrom vecTo
 				vecBody
@@ -77,8 +102,8 @@ vectorizeExpression = \case
 	Primary a -> return $ VecPrimary a
 	Access name -> do
 		index <- do
-			indicies <- ask
-			lift $ M.lookup name indicies
+			indices <- ask
+			lift $ M.lookup name indices
 		return $ VecAccess name index
 	Call name exprs -> do
 		vecExprs <- mapM vectorizeExpression exprs
@@ -103,5 +128,5 @@ registerIndexUpdates names
 			then succ index
 			else index
 
-initIndices :: Vars -> Indices
-initIndices = M.map (const 0)
+initIndices :: Integer -> Vars -> Indices
+initIndices n  = M.map (const n)

@@ -6,6 +6,7 @@ module Backend.Program
 	, Expression(..)
 	, DoStatement(..)
 	, HsType(..)
+	, Pattern(..)
 	) where
 
 type Name = String
@@ -23,12 +24,12 @@ data Program
 type Def = ValueDef
 
 data ValueDef
-	= ValueDef Name [Name] Expression
+	= ValueDef Pattern Expression
 	deriving (Show)
 
 data Expression
 	= Access Name
-	| Lambda [Name] Expression
+	| Lambda [Pattern] Expression
 	| Beta Expression Expression
 	| Binary Name Expression Expression
 	| Tuple [Expression]
@@ -41,7 +42,12 @@ data Expression
 	deriving (Show)
 
 data DoStatement
-	= DoBind Name Expression
+	= DoBind Pattern Expression
 	| DoLet  Name Expression
 	| DoExecute Expression
+	deriving (Show)
+
+data Pattern
+	= PatTuple [Name]
+	| PatFunc Name [Name]
 	deriving (Show)

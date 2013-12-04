@@ -22,7 +22,7 @@ renderImport cs
 	= P.text "import"
 	P.<+> P.text cs
 
-renderDef (ValueDef name names expr)
+renderDef (ValueDef (PatFunc name names) expr)
 	= P.hsep
 	[ renderName name
 	, P.hsep $ map renderName names
@@ -30,14 +30,21 @@ renderDef (ValueDef name names expr)
 	, renderExpression expr
 	]
 
+renderDef (ValueDef pat expr)
+	= P.hsep
+	[ renderPattern pat
+	, P.text "="
+	, renderExpression expr
+	]
+
 renderExpression (Access name)
 	= renderName name
 
-renderExpression (Lambda names expr)
+renderExpression (Lambda pats expr)
 	= P.hsep
 	[ P.hcat
 		[ P.text "\\"
-		, P.hsep $ map renderName names
+		, P.hsep $ map renderPattern pats
 		]
 	, P.text "->"
 	, renderExpression expr
@@ -55,6 +62,9 @@ renderExpression (Binary op expr1 expr2)
 	, renderName op
 	, P.parens $ renderExpression expr2
 	]
+
+renderExpression (Tuple [Access name])
+	= renderName name
 
 renderExpression (Tuple exprs)
 	= P.parens
@@ -112,9 +122,9 @@ renderType = \case
 	HsUnit -> P.text "()"
 	HsIO t -> P.hsep [P.text "IO", renderType t]
 
-renderStatement (DoBind name expr)
+renderStatement (DoBind pat expr)
 	= P.hsep
-	[ renderName name
+	[ renderPattern pat
 	, P.text "<-"
 	, renderExpression expr
 	]
@@ -129,3 +139,13 @@ renderStatement (DoLet name expr)
 
 renderStatement (DoExecute expr)
 	= renderExpression expr
+
+renderPattern (PatTuple [name])
+	= renderName name
+
+renderPattern (PatTuple names)
+	= P.parens
+	$ P.hsep
+	$ P.punctuate P.comma
+	$ map renderName
+	$ names

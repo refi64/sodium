@@ -31,14 +31,14 @@ data Body
 	, _bodyStatements :: [Statement]
 	} deriving (Show)
 
-data Argument e
+data Argument
 	= LValue Name
-	| RValue e
+	| RValue Expression
 	deriving (Show)
 
 data Statement
 	= Assign Name Expression
-	| Execute Name [Argument Expression]
+	| Execute Name [Argument]
 	| ForStatement ForCycle
 	deriving (Show)
 
@@ -65,15 +65,21 @@ data VecBody
 	, _vecBodyIndices :: Indices
 	} deriving (Show)
 
+data VecArgument
+	= VecLValue Name Integer
+	| VecRValue VecExpression
+	deriving (Show)
+
 data VecStatement
 	= VecAssign Name Integer VecExpression
-	| VecExecute Name [Argument VecExpression]
+	| VecExecute Name [VecArgument]
 	| VecForStatement VecForCycle
 	deriving (Show)
 
 data VecForCycle
 	= VecForCycle
-	{ _vecForClosure :: [Name]
+	{ _vecForArgIndices :: Indices
+	, _vecForRetIndices :: Indices
 	, _vecForName :: Name
 	, _vecForFrom :: VecExpression
 	, _vecForTo :: VecExpression
@@ -108,7 +114,7 @@ data ClType
 	| ClBoolean
 	| ClString
 	| ClVoid
-	deriving (Show)
+	deriving (Eq, Show)
 
 type Vars
 	= M.Map Name ClType

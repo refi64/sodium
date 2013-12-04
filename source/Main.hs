@@ -26,9 +26,8 @@ main = do
 process :: String -> Maybe String
 process
 	 =  render
---	 = (return . show)
 	<=< dechlorinate
---	<=< dissolve
+	<=< dissolve
 	<=< chlorinate
 	<=< parse
 	<=< tokenize
