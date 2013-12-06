@@ -42,8 +42,8 @@ dechlorinateType = \case
 	S.ClString  -> D.HsType "String"
 	S.ClVoid -> D.HsUnit
 
-dechlorinateBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
-dechlorinateBody externalVars rets (S.VecBody vars statements indices resultExprs) = do
+dechlorinateBody :: S.Vars -> S.VecBody -> Maybe D.Expression
+dechlorinateBody externalVars (S.VecBody vars statements indices resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsStatements <- mapM (dechlorinateStatement vars') statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
@@ -87,7 +87,7 @@ dechlorinateStatement vars = \case
 			<-  D.Range
 			<$> dechlorinateExpression exprFrom
 			<*> dechlorinateExpression exprTo
-		hsBody <- dechlorinateBody vars (M.keys argIndices) clBody
+		hsBody <- dechlorinateBody vars clBody
 		let hsArgExpr
 			= D.Tuple
 			$ map D.Access
@@ -120,19 +120,19 @@ dechlorinateFunc :: S.Func S.VecBody -> Maybe D.Def
 dechlorinateFunc (S.Func S.NameMain params S.ClVoid clBody)
 	= do
 		guard $ M.null params
-		hsBody <- dechlorinateBody M.empty [] clBody
+		hsBody <- dechlorinateBody M.empty clBody
 		return $ D.ValueDef (D.PatFunc "main" []) hsBody
 dechlorinateFunc (S.Func name params retType clBody)
 	 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
-	<$> dechlorinatePureBody params [] clBody
+	<$> dechlorinatePureBody params clBody
 	where
 		paramNames
 			= map transformName
 			$ M.keys
 			$ params
 
-dechlorinatePureBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
-dechlorinatePureBody externalVars rets (S.VecBody vars statements indices resultExprs) = do
+dechlorinatePureBody :: S.Vars -> S.VecBody -> Maybe D.Expression
+dechlorinatePureBody externalVars (S.VecBody vars statements indices resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
@@ -148,7 +148,7 @@ dechlorinatePureStatement vars = \case
 			<-  D.Range
 			<$> dechlorinateExpression exprFrom
 			<*> dechlorinateExpression exprTo
-		hsBody <- dechlorinatePureBody vars (M.keys argIndices) clBody
+		hsBody <- dechlorinatePureBody vars clBody
 		let hsArgExpr
 			= D.Tuple
 			$ map D.Access
