@@ -55,30 +55,34 @@ dechlorinateBody externalVars (S.VecBody vars statements indices resultExprs) = 
 
 dechlorinateStatement :: S.Vars -> S.VecStatement -> Maybe D.DoStatement
 dechlorinateStatement vars = \case
-	S.VecExecute (S.Name "readln") [S.VecLValue name i] -> do
+	S.VecExecute retIndices (S.Name "readln") [S.VecLValue name i] -> do
 		t <- M.lookup name vars
-		return $ D.DoBind
-			-- (succ i) is a DIRTY HACK!!! Remove it
-			-- as soon as proper typechecking is
-			-- implemented
-			(D.PatTuple [dechlorinateName name (succ i)])
-			(beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO (dechlorinateType t))
-	S.VecExecute (S.Name "writeln") args -> case args of
-		[] -> return $ D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
-		args' -> do
-			hsExprs <- forM args' $ \case
-				S.VecLValue name i -> do
-					t <- M.lookup name vars
-					let mShow
-						| t == S.ClString = id
-						| otherwise = D.Beta (D.Access "show")
-					mShow <$> dechlorinateExpression (S.VecAccess name i)
-				S.VecRValue expr -> dechlorinateExpression expr
-			return
-				$ D.DoExecute
-				$ D.Beta (D.Access "putStrLn")
-				$ foldr1 (D.Binary "++")
-				$ hsExprs
+		let hsRetPat
+			= D.PatTuple
+			$ map
+				(uncurry dechlorinateName)
+				(M.toList retIndices)
+		let hsExpr = beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO (dechlorinateType t)
+		return $ D.DoBind hsRetPat hsExpr
+	S.VecExecute retIndices (S.Name "writeln") args -> do
+		-- WriteLn can't change its arguments
+		guard $ M.null retIndices
+		case args of
+			[] -> return $ D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
+			args' -> do
+				hsExprs <- forM args' $ \case
+					S.VecLValue name i -> do
+						t <- M.lookup name vars
+						let mShow
+							| t == S.ClString = id
+							| otherwise = D.Beta (D.Access "show")
+						mShow <$> dechlorinateExpression (S.VecAccess name i)
+					S.VecRValue expr -> dechlorinateExpression expr
+				return
+					$ D.DoExecute
+					$ D.Beta (D.Access "putStrLn")
+					$ foldr1 (D.Binary "++")
+					$ hsExprs
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
 		return $ D.DoLet (dechlorinateName name i) hsExpr

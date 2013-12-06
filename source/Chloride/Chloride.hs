@@ -74,7 +74,7 @@ data VecArgument
 
 data VecStatement
 	= VecAssign Name Integer VecExpression
-	| VecExecute Name [VecArgument]
+	| VecExecute Indices Name [VecArgument]
 	| VecForStatement Indices VecForCycle
 	deriving (Show)
 

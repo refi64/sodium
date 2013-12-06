@@ -65,16 +65,17 @@ vectorizeStatement = \case
 		-- HACK: for now we check if the procedure
 		-- is ReadLn, because only ReadLn is allowed
 		-- to change its LValues
-		if name == Name "readln"
-			then registerIndexUpdates [sidename | VecLValue sidename _ <- vecArgs]
-			else return ()
-		return $ VecExecute name vecArgs
+		sidenames <-
+			if name == Name "readln"
+				then do
+					let sidenames = [sidename | VecLValue sidename _ <- vecArgs]
+					registerIndexUpdates sidenames
+					return sidenames
+				else return []
+		retIndices <- readerToState $ closedIndices sidenames
+		return $ VecExecute retIndices name vecArgs
 	ForStatement forCycle -> do
-		argIndices <- do
-			indices <- get
-			return $ M.filterWithKey
-				(\name _ -> name `elem` (_forClosure forCycle))
-				indices
+		argIndices <- readerToState $ closedIndices (_forClosure forCycle)
 		vecFrom <- readerToState $ vectorizeExpression (_forFrom forCycle)
 		vecTo <- readerToState $ vectorizeExpression (_forTo forCycle)
 		-- TODO: wrap inner names
@@ -91,11 +92,7 @@ vectorizeStatement = \case
 			(_forName forCycle)
 			vecFrom vecTo
 			vecBody
-		retIndices <- do
-			indices <- get
-			return $ M.filterWithKey
-				(\name _ -> name `elem` (_forClosure forCycle))
-				indices
+		retIndices <- readerToState $ closedIndices (_forClosure forCycle)
 		return $ VecForStatement retIndices vecForCycle
 
 vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
@@ -128,6 +125,12 @@ registerIndexUpdates names
 		if name `elem` names
 			then succ index
 			else index
+
+closedIndices :: [Name] -> ReaderT Indices Maybe Indices
+closedIndices names
+	 =  M.filterWithKey
+	 	(\name _ -> name `elem` names)
+	<$> ask
 
 initIndices :: Integer -> Vars -> Indices
 initIndices n  = M.map (const n)
