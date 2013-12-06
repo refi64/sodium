@@ -40,9 +40,7 @@ vectorizeBody closure body = do
 vectorizeArgument :: Argument -> ReaderT Indices Maybe VecArgument
 vectorizeArgument = \case
 	LValue name -> do
-		index <- do
-			indices <- ask
-			lift $ M.lookup name indices
+		index <- lookupIndex name
 		return $ VecLValue name index
 	RValue expr -> VecRValue <$> vectorizeExpression expr
 
@@ -50,9 +48,7 @@ vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
 		vecExpr <- readerToState $ vectorizeExpression expr
-		index <- do
-			indices <- get
-			lift $ M.lookup name indices
+		index <- readerToState $ lookupIndex name
 		let index' = succ index
 		modify $ M.insert name index'
 		return $ VecAssign name index' vecExpr
@@ -97,9 +93,7 @@ vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
 vectorizeExpression = \case
 	Primary a -> return $ VecPrimary a
 	Access name -> do
-		index <- do
-			indices <- ask
-			lift $ M.lookup name indices
+		index <- lookupIndex name
 		return $ VecAccess name index
 	Call name exprs -> do
 		vecExprs <- mapM vectorizeExpression exprs
@@ -111,6 +105,10 @@ readerToState reader
 	$ \x -> do
 		a <- runReaderT reader x
 		return (a, x)
+
+lookupIndex name = do
+	indices <- ask
+	lift $ M.lookup name indices
 
 registerIndexUpdates names
 	= modify
