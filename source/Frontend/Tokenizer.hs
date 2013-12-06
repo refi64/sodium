@@ -13,11 +13,11 @@ tokenize = Tr.trap
 
 tokenTr :: Tr.Tr String Maybe [Token]
 tokenTr = msum
-	[ [] <$ mfilter C.isSpace Tr.head
+	[ [] <$ whitespace
 	, [SodiumSpecial]
 		<$ char '{'
-		<* many (mfilter C.isSpace Tr.head)
-		<* str "#SODIUM"
+		<* optional whitespace
+		<* mapM char "#SODIUM"
 	, [RBrace] <$ char '}'
 	, [LParen] <$ char '('
 	, [RParen] <$ char ')'
@@ -26,7 +26,7 @@ tokenTr = msum
 	, [Plus]  <$ char '+'
 	, [Minus] <$ char '-'
 	, [Slash] <$ char '/'
-	, [Assign] <$ str ":="
+	, [Assign] <$ mapM char ":="
 	, [Colon] <$ char ':'
 	, [Asterisk] <$ char '*'
 	, [Semicolon] <$ char ';'
@@ -40,7 +40,7 @@ tokenTr = msum
 		    in mplus escaped Tr.head `Tr.before` char '\''
 	] where
 		char c = mfilter (==c) Tr.head
-		str = mapM char
+		whitespace = some (mfilter C.isSpace Tr.head)
 		mangle cs = maybe [Name cs] id (lookup cs keywords)
 		keywords =
 			[ ("var", [KwVar])
