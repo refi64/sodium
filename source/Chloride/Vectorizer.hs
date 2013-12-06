@@ -123,7 +123,7 @@ registerIndexUpdates names
 closedIndices :: [Name] -> ReaderT Indices Maybe Indices
 closedIndices names
 	 =  M.filterWithKey
-	 	(\name _ -> name `elem` names)
+		(\name _ -> name `elem` names)
 	<$> ask
 
 initIndices :: Integer -> Vars -> Indices
