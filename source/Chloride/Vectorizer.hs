@@ -27,14 +27,19 @@ vectorizeBody closure body = do
 	let vectorizeStatements = mapM
 		vectorizeStatement
 		(_bodyStatements body)
-	(vecStatements, indices') <- runStateT
-		vectorizeStatements
+	let vectorizeResult
+		= readerToState
+		$ vectorizeExpression
+		$ (_bodyResult body)
+	((vecStatements, vecResult), indices') <- runStateT
+		((,) <$> vectorizeStatements <*> vectorizeResult)
 		indices
 	return $ VecBody
 		(_bodyVars body)
 		vecStatements
 		-- Not sure if this filter is a hack...
 		(M.filter (>0) indices')
+		vecResult
 
 vectorizeArgument :: Argument -> ReaderT Indices Maybe VecArgument
 vectorizeArgument = \case

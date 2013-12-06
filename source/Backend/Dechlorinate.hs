@@ -43,7 +43,7 @@ dechlorinateType = \case
 	S.ClVoid -> D.HsUnit
 
 dechlorinateBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
-dechlorinateBody externalVars rets (S.VecBody vars statements indices) = do
+dechlorinateBody externalVars rets (S.VecBody vars statements indices _) = do
 	let vars' = M.union vars externalVars
 	hsStatements <- mapM (dechlorinateStatement vars') statements
 	let hsStatement
@@ -137,7 +137,7 @@ dechlorinateFunc (S.Func name params retType retName clBody)
 		retVars = M.singleton retName retType
 
 dechlorinatePureBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
-dechlorinatePureBody externalVars rets (S.VecBody vars statements indices) = do
+dechlorinatePureBody externalVars rets (S.VecBody vars statements indices _) = do
 	let vars' = M.union vars externalVars
 	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
 	let hsRetValue

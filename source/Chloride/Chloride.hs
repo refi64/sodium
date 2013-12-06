@@ -29,6 +29,7 @@ data Body
 	= Body
 	{ _bodyVars :: Vars
 	, _bodyStatements :: [Statement]
+	, _bodyResult :: Expression
 	} deriving (Show)
 
 data Argument
@@ -62,7 +63,9 @@ data VecBody
 	= VecBody
 	{ _vecBodyVars :: Vars
 	, _vecBodyStatements :: [VecStatement]
+	-- DEPRECATED: _vecBodyIndices
 	, _vecBodyIndices :: Indices
+	, _vecBodyResult :: VecExpression
 	} deriving (Show)
 
 data VecArgument
@@ -95,6 +98,7 @@ data VecExpression
 data Literal
 	= Number String
 	| Quote  String
+	| Void
 	deriving (Show)
 
 -- TODO: Operator is basically a

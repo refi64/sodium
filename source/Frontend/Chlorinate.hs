@@ -30,7 +30,7 @@ chlorinateVB nameHook (S.Vars vardecls) (S.Body statements)
 	= do
 		clVars <- mapM chlorinateVarDecl vardecls
 		clStatements <- mapM (chlorinateStatement nameHook) statements
-		return $ D.Body (M.fromList clVars) clStatements
+		return $ D.Body (M.fromList clVars) clStatements (D.Primary D.Void)
 
 chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 	 =  D.Func
