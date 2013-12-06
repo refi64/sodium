@@ -21,7 +21,6 @@ data Func b
 	{ _funcName :: Name
 	, _funcParams :: Vars
 	, _funcRetType :: ClType
-	, _funcRetName :: Name
 	, _funcBody :: b
 	} deriving (Show)
 
@@ -29,7 +28,7 @@ data Body
 	= Body
 	{ _bodyVars :: Vars
 	, _bodyStatements :: [Statement]
-	, _bodyResult :: Expression
+	, _bodyResults :: [Expression]
 	} deriving (Show)
 
 data Argument
@@ -65,7 +64,7 @@ data VecBody
 	, _vecBodyStatements :: [VecStatement]
 	-- DEPRECATED: _vecBodyIndices
 	, _vecBodyIndices :: Indices
-	, _vecBodyResult :: VecExpression
+	, _vecBodyResults :: [VecExpression]
 	} deriving (Show)
 
 data VecArgument

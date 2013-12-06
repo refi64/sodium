@@ -43,17 +43,14 @@ dechlorinateType = \case
 	S.ClVoid -> D.HsUnit
 
 dechlorinateBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
-dechlorinateBody externalVars rets (S.VecBody vars statements indices _) = do
+dechlorinateBody externalVars rets (S.VecBody vars statements indices resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsStatements <- mapM (dechlorinateStatement vars') statements
+	hsRetValues <- mapM dechlorinateExpression resultExprs
 	let hsStatement
 		= D.DoExecute
 		$ D.Beta (D.Access "return")
-		$ D.Tuple
-		$ map (D.Access . uncurry dechlorinateName)
-		$ M.toList
-		$ M.filterWithKey (\name _ -> name `elem` rets)
-		$ indices
+		$ D.Tuple hsRetValues
 	return $ D.DoExpression (hsStatements ++ [hsStatement])
 
 dechlorinateStatement :: S.Vars -> S.VecStatement -> Maybe D.DoStatement
@@ -120,33 +117,26 @@ dechlorinateStatement vars = \case
 	st -> error (show st)
 
 dechlorinateFunc :: S.Func S.VecBody -> Maybe D.Def
-dechlorinateFunc (S.Func S.NameMain params S.ClVoid S.NameMain clBody)
+dechlorinateFunc (S.Func S.NameMain params S.ClVoid clBody)
 	= do
 		guard $ M.null params
 		hsBody <- dechlorinateBody M.empty [] clBody
 		return $ D.ValueDef (D.PatFunc "main" []) hsBody
-dechlorinateFunc (S.Func name params retType retName clBody)
+dechlorinateFunc (S.Func name params retType clBody)
 	 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
-	<$> dechlorinatePureBody vars [retName] clBody
+	<$> dechlorinatePureBody params [] clBody
 	where
 		paramNames
 			= map transformName
 			$ M.keys
 			$ params
-		vars = M.union retVars params
-		retVars = M.singleton retName retType
 
 dechlorinatePureBody :: S.Vars -> [S.Name] -> S.VecBody -> Maybe D.Expression
-dechlorinatePureBody externalVars rets (S.VecBody vars statements indices _) = do
+dechlorinatePureBody externalVars rets (S.VecBody vars statements indices resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
-	let hsRetValue
-		= D.Tuple
-		$ map (D.Access . uncurry dechlorinateName)
-		$ M.toList
-		$ M.filterWithKey (\name _ -> name `elem` rets)
-		$ indices
-	return $ D.PureLet hsValueDefs hsRetValue
+	hsRetValues <- mapM dechlorinateExpression resultExprs
+	return $ D.PureLet hsValueDefs (D.Tuple hsRetValues)
 
 dechlorinatePureStatement :: S.Vars -> S.VecStatement -> Maybe D.ValueDef
 dechlorinatePureStatement vars = \case
@@ -193,6 +183,7 @@ dechlorinateExpression :: S.VecExpression -> Maybe D.Expression
 dechlorinateExpression = \case
 	S.VecPrimary (S.Quote  cs) -> return $ D.Quote cs
 	S.VecPrimary (S.Number cs) -> return $ D.Number cs
+	S.VecPrimary (S.Void) -> return $ D.Tuple []
 	S.VecAccess name i -> return $ D.Access (dechlorinateName name i)
 	S.VecCall name exprs -> do
 		hsExprs <- mapM dechlorinateExpression exprs

@@ -13,9 +13,7 @@ import Chloride.Chloride
 
 vectorize :: Func Body -> Maybe (Func VecBody)
 vectorize func = do
-	let closure = M.union
-			(M.singleton (_funcRetName func) 0)
-			(initIndices 1 (_funcParams func))
+	let closure = initIndices 1 (_funcParams func)
 	vecBody <- vectorizeBody closure (_funcBody func)
 	return $ func { _funcBody = vecBody }
 
@@ -29,8 +27,8 @@ vectorizeBody closure body = do
 		(_bodyStatements body)
 	let vectorizeResult
 		= readerToState
-		$ vectorizeExpression
-		$ (_bodyResult body)
+		$ mapM vectorizeExpression
+		$ (_bodyResults body)
 	((vecStatements, vecResult), indices') <- runStateT
 		((,) <$> vectorizeStatements <*> vectorizeResult)
 		indices

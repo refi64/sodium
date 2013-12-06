@@ -15,30 +15,37 @@ chlorinate :: S.Program -> Maybe D.Program
 chlorinate (S.Program funcs vars body)
 	= do
 		clMain <- do
-			clBody <- chlorinateVB chlorinateName vars body
+			clBody <- chlorinateVB chlorinateName vars body []
 			return $ D.Func
 				D.NameMain
 				M.empty
 				D.ClVoid
-				D.NameMain
 				clBody
 		clFuncs <- mapM
 			chlorinateFunc funcs
 		return $ D.Program (clMain:clFuncs)
 
-chlorinateVB nameHook (S.Vars vardecls) (S.Body statements)
+chlorinateVB nameHook (S.Vars vardecls) (S.Body statements) results
 	= do
 		clVars <- mapM chlorinateVarDecl vardecls
 		clStatements <- mapM (chlorinateStatement nameHook) statements
-		return $ D.Body (M.fromList clVars) clStatements (D.Primary D.Void)
+		clResults <- map D.Access <$> mapM nameHook results
+		return $ D.Body (M.fromList clVars) clStatements clResults
 
 chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
-	 =  D.Func
-	<$> chlorinateName name
-	<*> (M.fromList <$> mapM chlorinateVarDecl params)
-	<*> chlorinateType pasType
-	<*> nameHook name
-	<*> chlorinateVB nameHook vars body
+	 = do
+		clName <- chlorinateName name
+		clParams <- M.fromList <$> mapM chlorinateVarDecl params
+		clRetType <- chlorinateType pasType
+		clRetName <- nameHook name
+		let enclose body
+			= body
+			{ D._bodyVars = M.union
+				(D._bodyVars body)
+				(M.singleton clRetName clRetType)
+			}
+		clBody <- enclose <$> chlorinateVB nameHook vars body [name]
+		return $ D.Func clName clParams clRetType clBody
 	where
 		nameHook cs =
 			if cs == name
@@ -70,14 +77,13 @@ chlorinateStatement nameHook = \case
 		<$> chlorinateName name
 		<*> mapM (chlorinateArgument nameHook) exprs
 	S.ForCycle closure name fromExpr toExpr body
-		 -> D.ForStatement
-		<$> ( D.ForCycle
-			<$> mapM nameHook closure
-			<*> nameHook name
-			<*> chlorinateExpr nameHook fromExpr
-			<*> chlorinateExpr nameHook toExpr
-			<*> chlorinateVB nameHook (S.Vars []) body
-			)
+		-> D.ForStatement <$> do
+			clClosure <- mapM nameHook closure
+			clName <- nameHook name
+			clFromExpr <- chlorinateExpr nameHook fromExpr
+			clToExpr <- chlorinateExpr nameHook toExpr
+			clBody <- chlorinateVB nameHook (S.Vars []) body closure
+			return $ D.ForCycle clClosure clName clFromExpr clToExpr clBody
 
 chlorinateArgument nameHook = \case
 	S.Access name -> D.LValue <$> nameHook name
