@@ -53,17 +53,14 @@ data ForCycle
 
 data Expression
 	= Access Name
-	| Call Name [Expression]
+	| Call CallName [Expression]
 	| Primary Literal
-	| Binary Operator Expression Expression
 	deriving (Show)
 
 data VecBody
 	= VecBody
 	{ _vecBodyVars :: Vars
 	, _vecBodyStatements :: [VecStatement]
-	-- DEPRECATED: _vecBodyIndices
-	, _vecBodyIndices :: Indices
 	, _vecBodyResults :: [VecExpression]
 	} deriving (Show)
 
@@ -89,9 +86,8 @@ data VecForCycle
 
 data VecExpression
 	= VecAccess Name Integer
-	| VecCall Name [VecExpression]
+	| VecCall CallName [VecExpression]
 	| VecPrimary Literal
-	| VecBinary Operator VecExpression VecExpression
 	deriving (Show)
 
 data Literal
@@ -100,14 +96,16 @@ data Literal
 	| Void
 	deriving (Show)
 
--- TODO: Operator is basically a
--- function name, so Binary and Call
--- can be merged
 data Operator
 	= OpAdd
 	| OpSubtract
 	| OpMultiply
 	| OpDivide
+	deriving (Show)
+
+data CallName
+	= CallName Name
+	| CallOperator Operator
 	deriving (Show)
 
 data ClType

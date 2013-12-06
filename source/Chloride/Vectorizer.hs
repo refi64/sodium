@@ -29,15 +29,13 @@ vectorizeBody closure body = do
 		= readerToState
 		$ mapM vectorizeExpression
 		$ (_bodyResults body)
-	((vecStatements, vecResult), indices') <- runStateT
-		((,) <$> vectorizeStatements <*> vectorizeResult)
-		indices
-	return $ VecBody
-		(_bodyVars body)
-		vecStatements
-		-- Not sure if this filter is a hack...
-		(M.filter (>0) indices')
-		vecResult
+	flip evalStateT indices $ do
+		vecStatements <- vectorizeStatements
+		vecResult <- vectorizeResult
+		return $ VecBody
+			(_bodyVars body)
+			vecStatements
+			vecResult
 
 vectorizeArgument :: Argument -> ReaderT Indices Maybe VecArgument
 vectorizeArgument = \case
@@ -106,10 +104,6 @@ vectorizeExpression = \case
 	Call name exprs -> do
 		vecExprs <- mapM vectorizeExpression exprs
 		return $ VecCall name vecExprs
-	Binary op expr1 expr2 -> do
-		vecExpr1 <- vectorizeExpression expr1
-		vecExpr2 <- vectorizeExpression expr2
-		return $ VecBinary op vecExpr1 vecExpr2
 
 readerToState :: Monad m => ReaderT x m a -> StateT x m a
 readerToState reader

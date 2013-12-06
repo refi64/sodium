@@ -95,7 +95,7 @@ chlorinateExpr nameHook = \case
 		<$> nameHook name
 	S.Call name exprs
 		 -> D.Call
-		<$> chlorinateName name
+		<$> (D.CallName <$> chlorinateName name)
 		<*> mapM (chlorinateExpr nameHook) exprs
 	S.Number cs
 		-> return
@@ -106,10 +106,9 @@ chlorinateExpr nameHook = \case
 		 $ D.Primary
 		 $ D.Quote cs
 	S.Binary op x y
-		 -> D.Binary
-		<$> chlorinateOp op
-		<*> chlorinateExpr nameHook x
-		<*> chlorinateExpr nameHook y
+		 -> D.Call
+		<$> (D.CallOperator <$> chlorinateOp op)
+		<*> mapM (chlorinateExpr nameHook) [x, y]
 
 chlorinateOp = \case
 	S.OpAdd -> return D.OpAdd

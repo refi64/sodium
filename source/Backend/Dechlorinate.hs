@@ -43,7 +43,7 @@ dechlorinateType = \case
 	S.ClVoid -> D.HsUnit
 
 dechlorinateBody :: S.Vars -> S.VecBody -> Maybe D.Expression
-dechlorinateBody externalVars (S.VecBody vars statements indices resultExprs) = do
+dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsStatements <- mapM (dechlorinateStatement vars') statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
@@ -136,7 +136,7 @@ dechlorinateFunc (S.Func name params retType clBody)
 			$ params
 
 dechlorinatePureBody :: S.Vars -> S.VecBody -> Maybe D.Expression
-dechlorinatePureBody externalVars (S.VecBody vars statements indices resultExprs) = do
+dechlorinatePureBody externalVars (S.VecBody vars statements resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
@@ -183,21 +183,28 @@ dechlorinatePureStatement vars = \case
 
 beta = foldl1 D.Beta
 
+dechlorinateOperator :: S.Operator -> Maybe D.Name
+dechlorinateOperator = \case
+			S.OpAdd -> return "+"
+			S.OpSubtract -> return "-"
+			S.OpMultiply -> return "*"
+			S.OpDivide -> return "/"
+
 dechlorinateExpression :: S.VecExpression -> Maybe D.Expression
 dechlorinateExpression = \case
 	S.VecPrimary (S.Quote  cs) -> return $ D.Quote cs
 	S.VecPrimary (S.Number cs) -> return $ D.Number cs
 	S.VecPrimary (S.Void) -> return $ D.Tuple []
 	S.VecAccess name i -> return $ D.Access (dechlorinateName name i)
-	S.VecCall name exprs -> do
+	S.VecCall callName exprs -> do
 		hsExprs <- mapM dechlorinateExpression exprs
-		return $ beta (D.Access (transformName name) : hsExprs)
-	S.VecBinary op expr1 expr2 -> do
-		hsExpr1 <- dechlorinateExpression expr1
-		hsExpr2 <- dechlorinateExpression expr2
-		hsOp <- case op of
-			S.OpAdd -> return "+"
-			S.OpSubtract -> return "-"
-			S.OpMultiply -> return "*"
-			S.OpDivide -> return "/"
-		return $ D.Binary hsOp hsExpr1 hsExpr2
+		case callName of
+			S.CallName name
+				-> return
+				 $ beta (D.Access (transformName name) : hsExprs)
+			S.CallOperator op -> do
+				hsOp <- dechlorinateOperator op
+				case hsExprs of
+					hsExpr1:hsExpr2:hsExprs ->
+						return $ beta (D.Binary hsOp hsExpr1 hsExpr2 : hsExprs)
+					e -> error (show e)
