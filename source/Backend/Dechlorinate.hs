@@ -171,7 +171,7 @@ dechlorinatePureStatement vars = \case
 				, D.Lambda
 					[ D.PatTuple
 						$ map transformName
-						$ M.keys retIndices
+						$ M.keys argIndices
 					, D.PatTuple [transformName name]
 					]
 					hsBody
