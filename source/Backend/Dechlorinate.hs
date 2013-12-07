@@ -55,7 +55,7 @@ dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
 
 dechlorinateStatement :: S.Vars -> S.VecStatement -> Maybe D.DoStatement
 dechlorinateStatement vars = \case
-	S.VecExecute retIndices (S.Name "readln") [S.VecLValue name i] -> do
+	S.VecExecute retIndices S.ExecuteRead [S.VecLValue name i] -> do
 		t <- M.lookup name vars
 		let hsRetPat
 			= D.PatTuple
@@ -64,7 +64,7 @@ dechlorinateStatement vars = \case
 				(M.toList retIndices)
 		let hsExpr = beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO (dechlorinateType t)
 		return $ D.DoBind hsRetPat hsExpr
-	S.VecExecute retIndices (S.Name "writeln") args -> do
+	S.VecExecute retIndices S.ExecuteWrite args -> do
 		-- WriteLn can't change its arguments
 		guard $ M.null retIndices
 		case args of

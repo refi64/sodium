@@ -38,7 +38,7 @@ data Argument
 
 data Statement
 	= Assign Name Expression
-	| Execute Name [Argument]
+	| Execute ExecuteName [Argument]
 	| ForStatement ForCycle
 	deriving (Show)
 
@@ -71,7 +71,7 @@ data VecArgument
 
 data VecStatement
 	= VecAssign Name Integer VecExpression
-	| VecExecute Indices Name [VecArgument]
+	| VecExecute Indices ExecuteName [VecArgument]
 	| VecForStatement Indices VecForCycle
 	deriving (Show)
 
@@ -101,11 +101,18 @@ data Operator
 	| OpSubtract
 	| OpMultiply
 	| OpDivide
+	| OpShow
 	deriving (Show)
 
 data CallName
 	= CallName Name
 	| CallOperator Operator
+	deriving (Show)
+
+data ExecuteName
+	= ExecuteName Name
+	| ExecuteWrite
+	| ExecuteRead
 	deriving (Show)
 
 data ClType

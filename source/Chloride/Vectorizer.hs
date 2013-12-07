@@ -11,8 +11,13 @@ import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Chloride.Chloride
 
-vectorize :: Func Body -> Maybe (Func VecBody)
-vectorize func = do
+vectorize :: Program -> Maybe VecProgram
+vectorize (Program funcs) = do
+	vecFuncs <- mapM vectorizeFunc funcs
+	return $ VecProgram vecFuncs
+
+vectorizeFunc :: Func Body -> Maybe (Func VecBody)
+vectorizeFunc func = do
 	let closure = initIndices 1 (_funcParams func)
 	vecBody <- vectorizeBody closure (_funcBody func)
 	return $ func { _funcBody = vecBody }
@@ -57,13 +62,12 @@ vectorizeStatement = \case
 		-- HACK: for now we check if the procedure
 		-- is ReadLn, because only ReadLn is allowed
 		-- to change its LValues
-		sidenames <-
-			if name == Name "readln"
-				then do
+		sidenames <- case name of
+			ExecuteRead -> do
 					let sidenames = [sidename | VecLValue sidename _ <- vecArgs]
 					mapM registerIndexUpdate sidenames
 					return sidenames
-				else return []
+			_ -> return []
 		retIndices <- readerToState $ closedIndices sidenames
 		return $ VecExecute retIndices name vecArgs
 	ForStatement forCycle -> do

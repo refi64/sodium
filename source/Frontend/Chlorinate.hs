@@ -74,7 +74,7 @@ chlorinateStatement nameHook = \case
 		<*> chlorinateExpr nameHook expr
 	S.Execute name exprs
 		 -> D.Execute
-		<$> chlorinateName name
+		<$> (D.ExecuteName <$> chlorinateName name)
 		<*> mapM (chlorinateArgument nameHook) exprs
 	S.ForCycle closure name fromExpr toExpr body
 		-> D.ForStatement <$> do
