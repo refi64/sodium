@@ -48,10 +48,8 @@ vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
 		vecExpr <- readerToState $ vectorizeExpression expr
-		index <- readerToState $ lookupIndex name
-		let index' = succ index
-		modify $ M.insert name index'
-		return $ VecAssign name index' vecExpr
+		index <- registerIndexUpdate name
+		return $ VecAssign name index vecExpr
 	Execute name args -> do
 		vecArgs <- readerToState $ mapM vectorizeArgument args
 		-- TODO: typecheck in order to find out
@@ -63,7 +61,7 @@ vectorizeStatement = \case
 			if name == Name "readln"
 				then do
 					let sidenames = [sidename | VecLValue sidename _ <- vecArgs]
-					registerIndexUpdates sidenames
+					mapM registerIndexUpdate sidenames
 					return sidenames
 				else return []
 		retIndices <- readerToState $ closedIndices sidenames
@@ -80,7 +78,7 @@ vectorizeStatement = \case
 			$ _forName forCycle
 			: _forClosure forCycle
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
-		registerIndexUpdates (_forClosure forCycle)
+		mapM registerIndexUpdate (_forClosure forCycle)
 		let vecForCycle = VecForCycle
 			argIndices
 			(_forName forCycle)
@@ -110,13 +108,11 @@ lookupIndex name = do
 	indices <- ask
 	lift $ M.lookup name indices
 
-registerIndexUpdates names
-	= modify
-	$ M.mapWithKey
-	$ \name index ->
-		if name `elem` names
-			then succ index
-			else index
+registerIndexUpdate name = do
+	index <- readerToState $ lookupIndex name
+	let index' = succ index
+	modify $ M.insert name index'
+	return index'
 
 closedIndices :: [Name] -> ReaderT Indices Maybe Indices
 closedIndices names
