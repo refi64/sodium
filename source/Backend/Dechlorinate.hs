@@ -11,8 +11,9 @@ import qualified Data.Map as M
 -- S for Src, D for Dest
 import qualified Chloride.Chloride as S
 import qualified  Backend.Program  as D
+import Success
 
-dechlorinate :: S.VecProgram -> Maybe D.Program
+dechlorinate :: S.VecProgram -> (Fail String) D.Program
 dechlorinate (S.VecProgram funcs) = do
 	funcDefs <- mapM dechlorinateFunc funcs
 	return $ D.Program funcDefs ["Control.Monad"]
@@ -42,7 +43,7 @@ dechlorinateType = \case
 	S.ClString  -> D.HsType "String"
 	S.ClVoid -> D.HsUnit
 
-dechlorinateBody :: S.Vars -> S.VecBody -> Maybe D.Expression
+dechlorinateBody :: S.Vars -> S.VecBody -> (Fail String) D.Expression
 dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsStatements <- mapM (dechlorinateStatement vars') statements
@@ -53,10 +54,10 @@ dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
 		$ D.Tuple hsRetValues
 	return $ D.DoExpression (hsStatements ++ [hsStatement])
 
-dechlorinateStatement :: S.Vars -> S.VecStatement -> Maybe D.DoStatement
+dechlorinateStatement :: S.Vars -> S.VecStatement -> (Fail String) D.DoStatement
 dechlorinateStatement vars = \case
 	S.VecExecute retIndices S.ExecuteRead [S.VecLValue name i] -> do
-		t <- M.lookup name vars
+		t <- annotate (M.lookup name vars) 0 ("Could not access " ++ show name)
 		let hsRetPat
 			= D.PatTuple
 			$ map
@@ -112,7 +113,7 @@ dechlorinateStatement vars = \case
 			)
 	st -> error (show st)
 
-dechlorinateFunc :: S.Func S.VecBody -> Maybe D.Def
+dechlorinateFunc :: S.Func S.VecBody -> (Fail String) D.Def
 dechlorinateFunc (S.Func S.NameMain params S.ClVoid clBody)
 	= do
 		guard $ M.null params
@@ -127,14 +128,14 @@ dechlorinateFunc (S.Func name params retType clBody)
 			$ M.keys
 			$ params
 
-dechlorinatePureBody :: S.Vars -> S.VecBody -> Maybe D.Expression
+dechlorinatePureBody :: S.Vars -> S.VecBody -> (Fail String) D.Expression
 dechlorinatePureBody externalVars (S.VecBody vars statements resultExprs) = do
 	let vars' = M.union vars externalVars
 	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
 	return $ D.PureLet hsValueDefs (D.Tuple hsRetValues)
 
-dechlorinatePureStatement :: S.Vars -> S.VecStatement -> Maybe D.ValueDef
+dechlorinatePureStatement :: S.Vars -> S.VecStatement -> (Fail String) D.ValueDef
 dechlorinatePureStatement vars = \case
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
@@ -175,12 +176,12 @@ dechlorinatePureStatement vars = \case
 
 beta = foldl1 D.Beta
 
-dechlorinateArgument :: S.VecArgument -> Maybe D.Expression
+dechlorinateArgument :: S.VecArgument -> (Fail String) D.Expression
 dechlorinateArgument = \case
 	S.VecLValue name i -> return $ D.Access (dechlorinateName name i)
 	S.VecRValue expr -> dechlorinateExpression expr
 
-dechlorinateExpression :: S.VecExpression -> Maybe D.Expression
+dechlorinateExpression :: S.VecExpression -> (Fail String) D.Expression
 dechlorinateExpression = \case
 	S.VecPrimary (S.Quote  cs) -> return $ D.Quote cs
 	S.VecPrimary (S.Number cs) -> return $ D.Number cs

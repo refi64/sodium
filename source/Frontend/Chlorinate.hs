@@ -10,8 +10,9 @@ import Control.Applicative
 import qualified Frontend.Program  as S
 import qualified Chloride.Chloride as D
 import qualified Data.Map as M
+import Success
 
-chlorinate :: S.Program -> Maybe D.Program
+chlorinate :: S.Program -> (Fail String) D.Program
 chlorinate (S.Program funcs vars body)
 	= do
 		clMain <- do

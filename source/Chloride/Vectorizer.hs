@@ -10,19 +10,20 @@ import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Chloride.Chloride
+import Success
 
-vectorize :: Program -> Maybe VecProgram
+vectorize :: Program -> (Fail String) VecProgram
 vectorize (Program funcs) = do
 	vecFuncs <- mapM vectorizeFunc funcs
 	return $ VecProgram vecFuncs
 
-vectorizeFunc :: Func Body -> Maybe (Func VecBody)
+vectorizeFunc :: Func Body -> (Fail String) (Func VecBody)
 vectorizeFunc func = do
 	let closure = initIndices 1 (_funcParams func)
 	vecBody <- vectorizeBody closure (_funcBody func)
 	return $ func { _funcBody = vecBody }
 
-vectorizeBody :: Indices -> Body -> Maybe VecBody
+vectorizeBody :: Indices -> Body -> (Fail String) VecBody
 vectorizeBody closure body = do
 	let indices = M.union
 		(initIndices 0 (_bodyVars body))
@@ -42,14 +43,14 @@ vectorizeBody closure body = do
 			vecStatements
 			vecResult
 
-vectorizeArgument :: Argument -> ReaderT Indices Maybe VecArgument
+vectorizeArgument :: Argument -> ReaderT Indices (Fail String) VecArgument
 vectorizeArgument = \case
 	LValue name -> do
 		index <- lookupIndex name
 		return $ VecLValue name index
 	RValue expr -> VecRValue <$> vectorizeExpression expr
 
-vectorizeStatement :: Statement -> StateT Indices Maybe VecStatement
+vectorizeStatement :: Statement -> StateT Indices (Fail String) VecStatement
 vectorizeStatement = \case
 	Assign name expr -> do
 		vecExpr <- readerToState $ vectorizeExpression expr
@@ -91,7 +92,7 @@ vectorizeStatement = \case
 		retIndices <- readerToState $ closedIndices (_forClosure forCycle)
 		return $ VecForStatement retIndices vecForCycle
 
-vectorizeExpression :: Expression -> ReaderT Indices Maybe VecExpression
+vectorizeExpression :: Expression -> ReaderT Indices (Fail String) VecExpression
 vectorizeExpression = \case
 	Primary a -> return $ VecPrimary a
 	Access name -> do
@@ -110,7 +111,8 @@ readerToState reader
 
 lookupIndex name = do
 	indices <- ask
-	lift $ M.lookup name indices
+	lift $ annotate (M.lookup name indices) 0
+		("Vectorizer could not access index of " ++ show name)
 
 registerIndexUpdate name = do
 	index <- readerToState $ lookupIndex name
@@ -118,7 +120,7 @@ registerIndexUpdate name = do
 	modify $ M.insert name index'
 	return index'
 
-closedIndices :: [Name] -> ReaderT Indices Maybe Indices
+closedIndices :: [Name] -> ReaderT Indices (Fail String) Indices
 closedIndices names
 	 =  M.filterWithKey
 		(\name _ -> name `elem` names)

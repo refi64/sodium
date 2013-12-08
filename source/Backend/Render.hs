@@ -7,10 +7,11 @@ module Backend.Render
 import Data.List (intersperse)
 import qualified Text.PrettyPrint as P
 import Backend.Program
+import Success
 
 vsep = foldr (P.$+$) P.empty
 
-render :: Program -> Maybe String
+render :: Program -> (Fail String) String
 render (Program defs imports)
 	= return
 	$ P.render

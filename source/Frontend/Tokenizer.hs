@@ -5,13 +5,14 @@ import Control.Monad
 import qualified Data.Char as C
 import qualified Tr
 import Frontend.Token
+import Success
 
-tokenize :: String -> Maybe [Token]
+tokenize :: String -> (Fail String) [Token]
 tokenize = Tr.trap
 	(const <$> concat <$> many tokenTr)
 	(guard . null)
 
-tokenTr :: Tr.Tr String Maybe [Token]
+tokenTr :: Tr.Tr String (Fail String) [Token]
 tokenTr = msum
 	[ [] <$ whitespace
 	, [SodiumSpecial]

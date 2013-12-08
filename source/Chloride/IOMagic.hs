@@ -7,27 +7,28 @@ module Chloride.IOMagic
 import Control.Monad.Reader
 import qualified Data.Map as M
 import Chloride.Chloride
+import Success
 
-uncurse :: Program -> Maybe Program
+uncurse :: Program -> (Fail String) Program
 uncurse (Program funcs) = do
 	uncFuncs <- mapM uncurseFunc funcs
 	return $ Program uncFuncs
 
-uncurseFunc :: Func Body -> Maybe (Func Body)
+uncurseFunc :: Func Body -> (Fail String) (Func Body)
 uncurseFunc func = do
 	uncBody <- runReaderT
 		(uncurseBody (_funcBody func))
 		(_funcParams func)
 	return $ func { _funcBody = uncBody }
 
-uncurseBody :: Body -> ReaderT Vars Maybe Body
+uncurseBody :: Body -> ReaderT Vars (Fail String) Body
 uncurseBody body
 	= local (M.union $ _bodyVars body)
 	$ do
 		uncStatements <- mapM uncurseStatement (_bodyStatements body)
 		return $ body { _bodyStatements = uncStatements }
 
-uncurseStatement :: Statement -> ReaderT Vars Maybe Statement
+uncurseStatement :: Statement -> ReaderT Vars (Fail String) Statement
 uncurseStatement = \case
 	Execute (ExecuteName (Name "readln")) args ->
 		return $ Execute ExecuteRead args
@@ -39,7 +40,8 @@ uncurseStatement = \case
 			LValue name -> do
 				t <- do
 					vars <- ask
-					lift $ M.lookup name vars
+					lift $ annotate (M.lookup name vars) 0
+						("IOMagic could not access type of " ++ show name)
 				return $ case t of
 					ClString -> RValue $ Access name
 					_ -> RValue $ Call (CallOperator OpShow) [Access name]

@@ -10,6 +10,7 @@ import Backend.Dechlorinate
 import Backend.Render
 import Chloride.Vectorizer
 import Chloride.IOMagic
+import Success
 
 main = do
 	args <- getArgs
@@ -17,14 +18,22 @@ main = do
 		[filename1, filename2] -> do
 			source <- readFile filename1
 			case process source of
-				Just dest -> do
+				Success dest -> do
 					putStrLn dest
 					writeFile filename2 dest
-				Nothing ->
-					putStrLn "Can\'t translate"
+				Fail _ msgs -> do
+					putStrLn "Can\'t translate."
+					case msgs of
+						[] -> putStrLn "Error unknown"
+						[msg] -> putStrLn $ "Error: " ++ msg
+						msgs' -> do
+							putStrLn "Try fixing one of the following errors:"
+							void $ forM msgs' (\msg -> putStrLn $ "\t" ++ msg)
+
+
 		_ -> putStrLn "usage: sodium filename.pas filename.hs"
 
-process :: String -> Maybe String
+process :: String -> (Fail String) String
 process
 	 =  render
 	<=< dechlorinate

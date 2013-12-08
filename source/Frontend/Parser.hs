@@ -6,9 +6,9 @@ import Control.Monad
 import qualified Tr
 import qualified Frontend.Token as T
 import Frontend.Program
-import Debug.Trace
+import Success
 
-parse :: [T.Token] -> Maybe Program
+parse :: [T.Token] -> (Fail String) Program
 parse
 	= Tr.trap
 		(const <$> programTr)
@@ -170,7 +170,7 @@ quoteTr = Tr.head >>= \case
 	T.Quote cs -> return $ Quote cs
 	_ -> mzero
 
-nameTr :: Tr.Tr [T.Token] Maybe Name
+nameTr :: Tr.Tr [T.Token] (Fail String) Name
 nameTr = Tr.head >>= \case
 	T.Name cs -> return cs 
 	_ -> mzero
