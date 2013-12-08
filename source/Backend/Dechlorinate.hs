@@ -67,22 +67,14 @@ dechlorinateStatement vars = \case
 	S.VecExecute retIndices S.ExecuteWrite args -> do
 		-- WriteLn can't change its arguments
 		guard $ M.null retIndices
-		case args of
-			[] -> return $ D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
-			args' -> do
-				hsExprs <- forM args' $ \case
-					S.VecLValue name i -> do
-						t <- M.lookup name vars
-						let mShow
-							| t == S.ClString = id
-							| otherwise = D.Beta (D.Access "show")
-						mShow <$> dechlorinateExpression (S.VecAccess name i)
-					S.VecRValue expr -> dechlorinateExpression expr
-				return
-					$ D.DoExecute
-					$ D.Beta (D.Access "putStrLn")
-					$ foldr1 (D.Binary "++")
-					$ hsExprs
+		hsArgs <- mapM dechlorinateArgument args
+		return $ case hsArgs of
+			[] -> D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
+			hsExprs
+				-> D.DoExecute
+				 $ D.Beta (D.Access "putStrLn")
+				 $ foldr1 (D.Binary "++")
+				 $ hsExprs
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
 		return $ D.DoLet (dechlorinateName name i) hsExpr
@@ -183,12 +175,10 @@ dechlorinatePureStatement vars = \case
 
 beta = foldl1 D.Beta
 
-dechlorinateOperator :: S.Operator -> Maybe D.Name
-dechlorinateOperator = \case
-			S.OpAdd -> return "+"
-			S.OpSubtract -> return "-"
-			S.OpMultiply -> return "*"
-			S.OpDivide -> return "/"
+dechlorinateArgument :: S.VecArgument -> Maybe D.Expression
+dechlorinateArgument = \case
+	S.VecLValue name i -> return $ D.Access (dechlorinateName name i)
+	S.VecRValue expr -> dechlorinateExpression expr
 
 dechlorinateExpression :: S.VecExpression -> Maybe D.Expression
 dechlorinateExpression = \case
@@ -198,13 +188,19 @@ dechlorinateExpression = \case
 	S.VecAccess name i -> return $ D.Access (dechlorinateName name i)
 	S.VecCall callName exprs -> do
 		hsExprs <- mapM dechlorinateExpression exprs
+		let binary hsOp = case hsExprs of
+			hsExpr1:hsExpr2:hsExprs -> 
+				return $ beta (D.Binary hsOp hsExpr1 hsExpr2 : hsExprs)
+			e -> error (show e)
 		case callName of
 			S.CallName name
 				-> return
 				 $ beta (D.Access (transformName name) : hsExprs)
-			S.CallOperator op -> do
-				hsOp <- dechlorinateOperator op
+			S.CallOperator S.OpShow -> do
 				case hsExprs of
-					hsExpr1:hsExpr2:hsExprs ->
-						return $ beta (D.Binary hsOp hsExpr1 hsExpr2 : hsExprs)
+					[hsExpr1] -> return (D.Access "show" `D.Beta` hsExpr1)
 					e -> error (show e)
+			S.CallOperator S.OpAdd -> binary "+"
+			S.CallOperator S.OpSubtract -> binary "-"
+			S.CallOperator S.OpMultiply -> binary "*"
+			S.CallOperator S.OpDivide -> binary "/"

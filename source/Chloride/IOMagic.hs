@@ -32,8 +32,18 @@ uncurseStatement = \case
 	Execute (ExecuteName (Name "readln")) args ->
 		return $ Execute ExecuteRead args
 	Execute (ExecuteName (Name "writeln")) args -> do
-		-- TODO: handle types and apply `show`
-		return $ Execute ExecuteWrite args
+		args' <- forM args $ \case
+			-- TODO: apply `show` to expressions
+			-- as soon as typecheck is implemented
+			RValue expr -> return $ RValue expr
+			LValue name -> do
+				t <- do
+					vars <- ask
+					lift $ M.lookup name vars
+				return $ case t of
+					ClString -> RValue $ Access name
+					_ -> RValue $ Call (CallOperator OpShow) [Access name]
+		return $ Execute ExecuteWrite args'
 	ForStatement forCycle -> do
 		uncBody <- uncurseBody (_forBody forCycle)
 		return $ ForStatement (forCycle { _forBody = uncBody })
