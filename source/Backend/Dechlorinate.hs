@@ -125,8 +125,7 @@ dechlorinateFunc (S.Func name params retType clBody)
 	where
 		paramNames
 			= map transformName
-			$ M.keys
-			$ params
+			$ M.keys params
 
 dechlorinatePureBody :: S.Vars -> S.VecBody -> (Fail String) D.Expression
 dechlorinatePureBody externalVars (S.VecBody vars statements resultExprs) = do
@@ -200,16 +199,17 @@ dechlorinateExpression = \case
 			S.CallName name
 				-> return
 				 $ beta (D.Access (transformName name) : hsExprs)
-			S.CallOperator S.OpShow -> do
-				case hsExprs of
-					[hsExpr1] -> return (D.Access "show" `D.Beta` hsExpr1)
-					e -> error (show e)
-			S.CallOperator S.OpAdd -> binary "+"
-			S.CallOperator S.OpSubtract -> binary "-"
-			S.CallOperator S.OpMultiply -> binary "*"
-			S.CallOperator S.OpDivide -> binary "/"
-			S.CallOperator S.OpMore -> binary ">"
-			S.CallOperator S.OpLess -> binary "<"
-			S.CallOperator S.OpEquals -> binary "=="
-			S.CallOperator S.OpAnd -> binary "&&"
-			S.CallOperator S.OpOr -> binary "||"
+			S.CallOperator op -> case op of
+				S.OpShow -> do
+					case hsExprs of
+						[hsExpr1] -> return (D.Access "show" `D.Beta` hsExpr1)
+						e -> error (show e)
+				S.OpAdd -> binary "+"
+				S.OpSubtract -> binary "-"
+				S.OpMultiply -> binary "*"
+				S.OpDivide -> binary "/"
+				S.OpMore -> binary ">"
+				S.OpLess -> binary "<"
+				S.OpEquals -> binary "=="
+				S.OpAnd -> binary "&&"
+				S.OpOr -> binary "||"

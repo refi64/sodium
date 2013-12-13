@@ -55,7 +55,7 @@ typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
 	"real" -> return PasReal
 	"boolean" -> return PasBoolean
-	"string" -> return PasString
+	"string"  -> return PasString
 	cs -> return $ PasType cs
 
 bodyTr
@@ -140,9 +140,9 @@ conditionTr = do
 
 expressionTr = sepl termTr $
 	Tr.head >>= \case
-		T.Plus -> return (Binary OpAdd)
+		T.Plus  -> return (Binary OpAdd)
 		T.Minus -> return (Binary OpSubtract)
-		T.KwOr -> return (Binary OpOr)
+		T.KwOr  -> return (Binary OpOr)
 		_ -> mzero
 
 termTr = sepl primTr $
