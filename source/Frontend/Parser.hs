@@ -99,7 +99,7 @@ assignTr
 	 =  Assign
 	<$> nameTr
 	<*  expect T.Assign
-	<*> expressionTr
+	<*> conditionTr
 
 executeTr
 	 =  Execute
@@ -112,9 +112,9 @@ forCycleTr
 	<*  expect T.KwFor
 	<*> nameTr
 	<*  expect T.Assign
-	<*> expressionTr
+	<*> conditionTr
 	<*  expect T.KwTo
-	<*> expressionTr
+	<*> conditionTr
 	<*  expect T.KwDo
 	<*> bodyTr
 
@@ -122,16 +122,34 @@ sodiumTr
 	=  expect T.SodiumSpecial
 	*> (fst <$> Tr.before nameTr (expect T.RBrace))
 
+conditionTr = do
+	expr1 <- expressionTr
+	mOp <- optional opTr
+	return $ case mOp of
+		Nothing -> expr1
+		Just op -> op expr1
+	where
+		opTr = do
+			op <- Tr.head >>= \case
+				T.Suck -> return OpLess
+				T.Blow -> return OpMore
+				T.EqSign -> return OpEquals
+				_ -> mzero
+			expr2 <- expressionTr
+			return $ flip (Binary op) expr2
+
 expressionTr = sepl termTr $
 	Tr.head >>= \case
 		T.Plus -> return (Binary OpAdd)
 		T.Minus -> return (Binary OpSubtract)
+		T.KwOr -> return (Binary OpOr)
 		_ -> mzero
 
 termTr = sepl primTr $
 	Tr.head >>= \case
 		T.Asterisk -> return (Binary OpMultiply)
 		T.Slash -> return (Binary OpDivide)
+		T.KwAnd -> return (Binary OpAnd)
 		_ -> mzero
 
 primTr
@@ -140,12 +158,13 @@ primTr
 	, accessTr
 	, numberTr
 	, quoteTr
+	, boolTr
 	, enclosedTr
 	]
 
 enclosedTr
 	=  expect T.LParen
-	*> expressionTr
+	*> conditionTr
 	<* expect T.RParen
 
 argsTr
@@ -155,7 +174,7 @@ argsTr
 		end = expect T.RParen *> return []
 		next
 			 =  (:)
-			<$> expressionTr
+			<$> conditionTr
 			<*> mplus (expect T.Comma *> next) end
 
 accessTr
@@ -168,6 +187,11 @@ numberTr = Tr.head >>= \case
 
 quoteTr = Tr.head >>= \case
 	T.Quote cs -> return $ Quote cs
+	_ -> mzero
+
+boolTr = Tr.head >>= \case
+	T.KwTrue  -> return $ BTrue
+	T.KwFalse -> return $ BFalse
 	_ -> mzero
 
 nameTr :: Tr.Tr [T.Token] (Fail String) Name

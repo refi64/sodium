@@ -31,6 +31,9 @@ tokenTr = msum
 	, [Colon] <$ char ':'
 	, [Asterisk] <$ char '*'
 	, [Semicolon] <$ char ';'
+	, [EqSign] <$ char '='
+	, [Suck] <$ char '<'
+	, [Blow] <$ char '>'
 	, (\cs -> [Number cs]) <$> some (mfilter C.isDigit Tr.head)
 	, let letter = C.toLower <$> mfilter C.isAlphaNum Tr.head
 	  in mangle <$> some (letter `mplus` char '_')
@@ -51,4 +54,8 @@ tokenTr = msum
 			, ("to", [KwTo])
 			, ("do", [KwDo])
 			, ("function", [KwFunction])
+			, ("true", [KwTrue])
+			, ("false", [KwFalse])
+			, ("and", [KwAnd])
+			, ("or", [KwOr])
 			]

@@ -8,6 +8,10 @@ data Token
 	| KwTo
 	| KwDo
 	| KwFunction
+	| KwTrue
+	| KwFalse
+	| KwAnd
+	| KwOr
 	| LParen
 	| RParen
 	| Semicolon
@@ -19,6 +23,9 @@ data Token
 	| Asterisk
 	| Slash
 	| Colon
+	| EqSign
+	| Suck
+	| Blow
 	| Name String
 	| Number String
 	| Quote String

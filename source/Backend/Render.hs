@@ -115,6 +115,12 @@ renderExpression (Quote cs)
 renderExpression (Number cs)
 	= P.text cs
 
+renderExpression BTrue
+	= P.text "True"
+
+renderExpression BFalse
+	= P.text "False"
+
 renderName
 	= P.text
 

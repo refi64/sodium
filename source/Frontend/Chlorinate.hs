@@ -106,6 +106,12 @@ chlorinateExpr nameHook = \case
 		-> return
 		 $ D.Primary
 		 $ D.Quote cs
+	S.BTrue
+		-> return
+		 $ D.Primary D.BTrue
+	S.BFalse
+		-> return
+		 $ D.Primary D.BFalse
 	S.Binary op x y
 		 -> D.Call
 		<$> (D.CallOperator <$> chlorinateOp op)
@@ -116,3 +122,6 @@ chlorinateOp = \case
 	S.OpSubtract -> return D.OpSubtract
 	S.OpMultiply -> return D.OpMultiply
 	S.OpDivide -> return D.OpDivide
+	S.OpLess -> return D.OpLess
+	S.OpMore -> return D.OpMore
+	S.OpEquals -> return D.OpEquals

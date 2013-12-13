@@ -44,6 +44,7 @@ data Expression
 	| Call Name [Expression]
 	| Number String
 	| Quote String
+	| BTrue | BFalse
 	| Binary Operator Expression Expression
 	deriving (Show)
 
@@ -52,6 +53,11 @@ data Operator
 	| OpSubtract
 	| OpMultiply
 	| OpDivide
+	| OpLess
+	| OpMore
+	| OpEquals
+	| OpAnd
+	| OpOr
 	deriving (Show)
 
 data PasType

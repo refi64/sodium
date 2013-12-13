@@ -183,9 +183,12 @@ dechlorinateArgument = \case
 
 dechlorinateExpression :: S.VecExpression -> (Fail String) D.Expression
 dechlorinateExpression = \case
-	S.VecPrimary (S.Quote  cs) -> return $ D.Quote cs
-	S.VecPrimary (S.Number cs) -> return $ D.Number cs
-	S.VecPrimary (S.Void) -> return $ D.Tuple []
+	S.VecPrimary prim -> return $ case prim of
+		S.Quote  cs -> D.Quote cs
+		S.Number cs -> D.Number cs
+		S.BTrue  -> D.BTrue
+		S.BFalse -> D.BFalse
+		S.Void   -> D.Tuple []
 	S.VecAccess name i -> return $ D.Access (dechlorinateName name i)
 	S.VecCall callName exprs -> do
 		hsExprs <- mapM dechlorinateExpression exprs
@@ -205,3 +208,8 @@ dechlorinateExpression = \case
 			S.CallOperator S.OpSubtract -> binary "-"
 			S.CallOperator S.OpMultiply -> binary "*"
 			S.CallOperator S.OpDivide -> binary "/"
+			S.CallOperator S.OpMore -> binary ">"
+			S.CallOperator S.OpLess -> binary "<"
+			S.CallOperator S.OpEquals -> binary "=="
+			S.CallOperator S.OpAnd -> binary "&&"
+			S.CallOperator S.OpOr -> binary "||"

@@ -93,6 +93,8 @@ data VecExpression
 data Literal
 	= Number String
 	| Quote  String
+	| BTrue
+	| BFalse
 	| Void
 	deriving (Show)
 
@@ -101,6 +103,11 @@ data Operator
 	| OpSubtract
 	| OpMultiply
 	| OpDivide
+	| OpLess
+	| OpMore
+	| OpEquals
+	| OpAnd
+	| OpOr
 	| OpShow
 	deriving (Show)
 

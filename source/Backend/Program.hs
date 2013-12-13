@@ -35,6 +35,7 @@ data Expression
 	| Tuple [Expression]
 	| Quote String
 	| Number String
+	| BTrue | BFalse
 	| Typed Expression HsType
 	| DoExpression [DoStatement]
 	| PureLet [ValueDef] Expression
