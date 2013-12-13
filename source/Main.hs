@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Main (main) where
 
 import System.Environment
@@ -15,23 +17,27 @@ import Success
 main = do
 	args <- getArgs
 	case args of
-		[filename1, filename2] -> do
-			source <- readFile filename1
-			case process source of
-				Success dest -> do
-					putStrLn dest
-					writeFile filename2 dest
-				Fail _ msgs -> do
-					putStrLn "Can\'t translate."
-					case msgs of
-						[] -> putStrLn "Error unknown"
-						[msg] -> putStrLn $ "Error: " ++ msg
-						msgs' -> do
-							putStrLn "Try fixing one of the following errors:"
-							void $ forM msgs' (\msg -> putStrLn $ "\t" ++ msg)
-
-
+		[filename1, filename2] -> processFiles filename1 filename2
 		_ -> putStrLn "usage: sodium filename.pas filename.hs"
+
+processFiles :: String -> String -> IO ()
+processFiles filename1 filename2 = do
+	source <- readFile filename1
+	case process source of
+		Success dest -> do
+			putStrLn dest
+			writeFile filename2 dest
+		Fail _ msgs -> do
+			putStrLn "Can\'t translate."
+			processFail msgs
+
+processFail :: [String] -> IO ()
+processFail = \case
+	[] -> putStrLn "Error unknown"
+	[msg] -> putStrLn $ "Error: " ++ msg
+	msgs' -> do
+		putStrLn "Try fixing one of the following errors:"
+		void $ forM msgs' (\msg -> putStrLn $ "\t" ++ msg)
 
 process :: String -> (Fail String) String
 process
