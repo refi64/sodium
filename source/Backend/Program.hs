@@ -40,6 +40,7 @@ data Expression
 	| DoExpression [DoStatement]
 	| PureLet [ValueDef] Expression
 	| Range Expression Expression
+	| IfExpression Expression Expression Expression
 	deriving (Show)
 
 data DoStatement

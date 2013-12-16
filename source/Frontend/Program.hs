@@ -37,6 +37,7 @@ data Statement
 	= Assign Name Expression
 	| Execute Name [Expression]
 	| ForCycle [Name] Name Expression Expression Body
+	| IfBranch [Name] Expression Body (Maybe Body)
 	deriving (Show)
 
 data Expression

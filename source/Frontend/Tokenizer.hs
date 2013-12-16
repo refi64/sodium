@@ -58,4 +58,7 @@ tokenTr = msum
 			, ("false", [KwFalse])
 			, ("and", [KwAnd])
 			, ("or", [KwOr])
+			, ("if", [KwIf])
+			, ("then", [KwThen])
+			, ("else", [KwElse])
 			]

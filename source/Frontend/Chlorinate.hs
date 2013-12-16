@@ -85,6 +85,19 @@ chlorinateStatement nameHook = \case
 			clToExpr <- chlorinateExpr nameHook toExpr
 			clBody <- chlorinateVB nameHook (S.Vars []) body closure
 			return $ D.ForCycle clClosure clName clFromExpr clToExpr clBody
+	S.IfBranch closure expr bodyThen mBodyElse
+		-> D.IfStatement <$> do
+			clClosure <- mapM nameHook closure
+			clExpr <- chlorinateExpr nameHook expr
+			clBodyThen <- chlorinateVB nameHook (S.Vars []) bodyThen closure
+			clBodyElse <- case mBodyElse of
+				Just bodyElse ->
+					chlorinateVB nameHook (S.Vars []) bodyElse closure
+				Nothing -> do
+					clResults <- map D.Access <$> mapM nameHook closure
+					return $ D.Body M.empty [] clResults
+			return $ D.IfBranch clClosure clExpr clBodyThen clBodyElse
+
 
 chlorinateArgument nameHook = \case
 	S.Access name -> D.LValue <$> nameHook name

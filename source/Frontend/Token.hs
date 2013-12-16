@@ -12,6 +12,9 @@ data Token
 	| KwFalse
 	| KwAnd
 	| KwOr
+	| KwIf
+	| KwThen
+	| KwElse
 	| LParen
 	| RParen
 	| Semicolon

@@ -40,6 +40,7 @@ data Statement
 	= Assign Name Expression
 	| Execute ExecuteName [Argument]
 	| ForStatement ForCycle
+	| IfStatement IfBranch
 	deriving (Show)
 
 data ForCycle
@@ -49,6 +50,14 @@ data ForCycle
 	, _forFrom :: Expression
 	, _forTo :: Expression
 	, _forBody :: Body
+	} deriving (Show)
+
+data IfBranch
+	= IfBranch
+	{ _ifClosure :: [Name]
+	, _ifExpr :: Expression
+	, _ifThen :: Body
+	, _ifElse :: Body
 	} deriving (Show)
 
 data Expression
@@ -71,8 +80,9 @@ data VecArgument
 
 data VecStatement
 	= VecAssign Name Integer VecExpression
-	| VecExecute Indices ExecuteName [VecArgument]
-	| VecForStatement Indices VecForCycle
+	| VecExecute IndicesList ExecuteName [VecArgument]
+	| VecForStatement IndicesList VecForCycle
+	| VecIfStatement IndicesList VecIfBranch
 	deriving (Show)
 
 data VecForCycle
@@ -82,6 +92,13 @@ data VecForCycle
 	, _vecForFrom :: VecExpression
 	, _vecForTo :: VecExpression
 	, _vecForBody :: VecBody
+	} deriving (Show)
+
+data VecIfBranch
+	= VecIfBranch
+	{ _vecIfExpr :: VecExpression
+	, _vecIfThen :: VecBody
+	, _vecIfElse :: VecBody
 	} deriving (Show)
 
 data VecExpression
@@ -135,3 +152,6 @@ type Vars
 
 type Indices
 	= M.Map Name Integer
+
+type IndicesList
+	= [(Name, Integer)]

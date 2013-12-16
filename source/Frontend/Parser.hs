@@ -93,6 +93,7 @@ statementTr
 	[ assignTr
 	, executeTr
 	, forCycleTr
+	, ifBranchTr
 	]
 
 assignTr
@@ -117,6 +118,21 @@ forCycleTr
 	<*> conditionTr
 	<*  expect T.KwDo
 	<*> bodyTr
+
+ifBranchTr
+	 =  IfBranch
+	<$> sodiumTr
+	<*  expect T.KwIf
+	<*> conditionTr
+	<*> thenClause
+	<*> optional elseClause
+	where
+		thenClause
+			 = expect T.KwThen
+			*> bodyTr
+		elseClause
+			 = expect T.KwElse
+			*> bodyTr
 
 sodiumTr
 	=  expect T.SodiumSpecial

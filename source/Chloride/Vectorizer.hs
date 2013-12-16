@@ -85,12 +85,24 @@ vectorizeStatement = \case
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
 		mapM registerIndexUpdate (_forClosure forCycle)
 		let vecForCycle = VecForCycle
-			argIndices
+			(M.fromList argIndices)
 			(_forName forCycle)
 			vecFrom vecTo
 			vecBody
 		retIndices <- readerToState $ closedIndices (_forClosure forCycle)
 		return $ VecForStatement retIndices vecForCycle
+	IfStatement ifBranch -> do
+		vecExpr <- readerToState $ vectorizeExpression (_ifExpr ifBranch)
+		closure <- readerToState $ closedIndices (_ifClosure ifBranch)
+		vecBodyThen <- lift $ vectorizeBody (M.fromList closure) (_ifThen ifBranch)
+		vecBodyElse <- lift $ vectorizeBody (M.fromList closure) (_ifElse ifBranch)
+		mapM registerIndexUpdate (_ifClosure ifBranch)
+		let vecIfBranch = VecIfBranch
+			vecExpr
+			vecBodyThen
+			vecBodyElse
+		retIndices <- readerToState $ closedIndices (_ifClosure ifBranch)
+		return $ VecIfStatement retIndices vecIfBranch
 
 vectorizeExpression :: Expression -> ReaderT Indices (Fail String) VecExpression
 vectorizeExpression = \case
@@ -120,11 +132,11 @@ registerIndexUpdate name = do
 	modify $ M.insert name index'
 	return index'
 
-closedIndices :: [Name] -> ReaderT Indices (Fail String) Indices
-closedIndices names
-	 =  M.filterWithKey
-		(\name _ -> name `elem` names)
-	<$> ask
+closedIndices :: [Name] -> ReaderT Indices (Fail String) IndicesList
+closedIndices = mapM lookupIndex' where
+	lookupIndex' name = do
+		index <- lookupIndex name
+		return (name, index)
 
 initIndices :: Integer -> Vars -> Indices
 initIndices n  = M.map (const n)

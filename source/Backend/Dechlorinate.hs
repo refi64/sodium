@@ -21,9 +21,6 @@ dechlorinate (S.VecProgram funcs) = do
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState
 
--- WARNING: Name handling is broken. Beware, because
--- strange errors may appear in generated code.
--- TODO: Name management system
 transformName :: S.Name -> D.Name
 transformName = \case
 	S.NameMain -> "main"
@@ -62,12 +59,12 @@ dechlorinateStatement vars = \case
 			= D.PatTuple
 			$ map
 				(uncurry dechlorinateName)
-				(M.toList retIndices)
+				retIndices
 		let hsExpr = beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO (dechlorinateType t)
 		return $ D.DoBind hsRetPat hsExpr
 	S.VecExecute retIndices S.ExecuteWrite args -> do
 		-- WriteLn can't change its arguments
-		guard $ M.null retIndices
+		guard $ null retIndices
 		hsArgs <- mapM dechlorinateArgument args
 		return $ case hsArgs of
 			[] -> D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
@@ -95,7 +92,7 @@ dechlorinateStatement vars = \case
 			= D.PatTuple
 			$ map
 				(uncurry dechlorinateName)
-				(M.toList retIndices)
+				retIndices
 		return $ D.DoBind
 			hsRetPat
 			(beta
@@ -103,7 +100,7 @@ dechlorinateStatement vars = \case
 				, D.Lambda
 					[ D.PatTuple
 						$ map transformName
-						$ M.keys retIndices
+						$ map fst retIndices
 					, D.PatTuple [transformName name]
 					]
 					hsBody
@@ -111,6 +108,18 @@ dechlorinateStatement vars = \case
 				, hsRange
 				]
 			)
+	S.VecIfStatement retIndices (S.VecIfBranch expr bodyThen bodyElse) -> do
+		hsExpr <- dechlorinateExpression expr
+		hsBodyThen <- dechlorinateBody vars bodyThen
+		hsBodyElse <- dechlorinateBody vars bodyElse
+		let hsRetPat
+			= D.PatTuple
+			$ map
+				(uncurry dechlorinateName)
+				retIndices
+		return $ D.DoBind
+			hsRetPat
+			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
 	st -> error (show st)
 
 dechlorinateFunc :: S.Func S.VecBody -> (Fail String) D.Def
@@ -155,7 +164,7 @@ dechlorinatePureStatement vars = \case
 			= D.PatTuple
 			$ map
 				(uncurry dechlorinateName)
-				(M.toList retIndices)
+				retIndices
 		return $ D.ValueDef
 			hsRetPat
 			(beta

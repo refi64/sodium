@@ -109,6 +109,11 @@ renderExpression (Range exprFrom exprTo)
 	, renderExpression exprTo
 	]
 
+renderExpression (IfExpression expr bodyThen bodyElse)
+	= (P.text "if" P.<+> renderExpression expr)
+	P.$+$ (P.text "then" P.<+> renderExpression bodyThen)
+	P.$+$ (P.text "else" P.<+> renderExpression bodyElse)
+
 renderExpression (Quote cs)
 	= P.text (show cs)
 
