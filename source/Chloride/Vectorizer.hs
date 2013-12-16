@@ -64,7 +64,7 @@ vectorizeStatement = \case
 		-- is ReadLn, because only ReadLn is allowed
 		-- to change its LValues
 		sidenames <- case name of
-			ExecuteRead -> do
+			ExecuteRead _ -> do
 					let sidenames = [sidename | VecLValue sidename _ <- vecArgs]
 					mapM registerIndexUpdate sidenames
 					return sidenames

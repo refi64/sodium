@@ -66,6 +66,11 @@ typeTr = nameTr >>= \case
 	"string"  -> return PasString
 	cs -> return $ PasType cs
 
+bodyStatementTr
+	= mplus bodyTr (wrap <$> statementTr)
+	where
+		wrap statement = Body [statement]
+
 bodyTr
 	 =  Body . fst
 	<$  expect T.KwBegin
@@ -125,7 +130,7 @@ forCycleTr
 	<*  expect T.KwTo
 	<*> conditionTr
 	<*  expect T.KwDo
-	<*> bodyTr
+	<*> bodyStatementTr
 
 ifBranchTr
 	 =  IfBranch
@@ -137,10 +142,10 @@ ifBranchTr
 	where
 		thenClause
 			 = expect T.KwThen
-			*> bodyTr
+			*> bodyStatementTr
 		elseClause
 			 = expect T.KwElse
-			*> bodyTr
+			*> bodyStatementTr
 
 sodiumTr
 	=  expect T.SodiumSpecial

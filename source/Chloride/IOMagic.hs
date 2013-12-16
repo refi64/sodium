@@ -30,18 +30,16 @@ uncurseBody body
 
 uncurseStatement :: Statement -> ReaderT Vars (Fail String) Statement
 uncurseStatement = \case
-	Execute (ExecuteName (Name "readln")) args ->
-		return $ Execute ExecuteRead args
+	Execute (ExecuteName (Name "readln")) [LValue name] -> do
+		t <- lookupType name
+		return $ Execute (ExecuteRead t) [LValue name]
 	Execute (ExecuteName (Name "writeln")) args -> do
 		args' <- forM args $ \case
 			-- TODO: apply `show` to expressions
 			-- as soon as typecheck is implemented
 			RValue expr -> return $ RValue expr
 			LValue name -> do
-				t <- do
-					vars <- ask
-					lift $ annotate (M.lookup name vars) 0
-						("IOMagic could not access type of " ++ show name)
+				t <- lookupType name
 				return $ case t of
 					ClString -> RValue $ Access name
 					_ -> RValue $ Call (CallOperator OpShow) [Access name]
@@ -54,3 +52,8 @@ uncurseStatement = \case
 		uncBodyElse <- uncurseBody (_ifElse ifBranch)
 		return $ IfStatement (ifBranch {_ifThen = uncBodyThen, _ifElse = uncBodyElse})
 	statement -> return statement
+
+lookupType name = do
+	vars <- ask
+	lift $ annotate (M.lookup name vars) 0
+		("IOMagic could not access type of " ++ show name)

@@ -16,7 +16,7 @@ import Success
 dechlorinate :: S.VecProgram -> (Fail String) D.Program
 dechlorinate (S.VecProgram funcs) = do
 	funcDefs <- mapM dechlorinateFunc funcs
-	return $ D.Program funcDefs ["Control.Monad"]
+	return $ D.Program funcDefs ["Control.Monad", "Control.Applicative"]
 
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState
@@ -53,14 +53,15 @@ dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
 
 dechlorinateStatement :: S.Vars -> S.VecStatement -> (Fail String) D.DoStatement
 dechlorinateStatement vars = \case
-	S.VecExecute retIndices S.ExecuteRead [S.VecLValue name i] -> do
-		t <- annotate (M.lookup name vars) 0 ("Could not access " ++ show name)
+	S.VecExecute retIndices (S.ExecuteRead t) [S.VecLValue name i] -> do
 		let hsRetPat
 			= D.PatTuple
 			$ map
 				(uncurry dechlorinateName)
 				retIndices
-		let hsExpr = beta [D.Access "fmap", D.Access "read", D.Access "getLine"] `D.Typed` D.HsIO (dechlorinateType t)
+		let hsExpr
+			= D.Binary "<$>" (D.Access "read") (D.Access "getLine")
+			`D.Typed` D.HsIO (dechlorinateType t)
 		return $ D.DoBind hsRetPat hsExpr
 	S.VecExecute retIndices S.ExecuteWrite args -> do
 		-- WriteLn can't change its arguments

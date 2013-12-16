@@ -136,7 +136,7 @@ data CallName
 data ExecuteName
 	= ExecuteName Name
 	| ExecuteWrite
-	| ExecuteRead
+	| ExecuteRead ClType
 	deriving (Show)
 
 data ClType
