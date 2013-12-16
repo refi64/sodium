@@ -30,7 +30,7 @@ data Func
 	deriving (Show)
 
 data VarDecl
-	= VarDecl Name PasType
+	= VarDecl [Name] PasType
 	deriving (Show)
 
 data Statement

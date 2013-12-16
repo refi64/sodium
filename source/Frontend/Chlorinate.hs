@@ -28,7 +28,7 @@ chlorinate (S.Program funcs vars body)
 
 chlorinateVB nameHook (S.Vars vardecls) (S.Body statements) results
 	= do
-		clVars <- mapM chlorinateVarDecl vardecls
+		clVars <- mapM chlorinateVarDecl (splitVarDecls vardecls)
 		clStatements <- mapM (chlorinateStatement nameHook) statements
 		clResults <- map D.Access <$> mapM nameHook results
 		return $ D.Body (M.fromList clVars) clStatements clResults
@@ -36,7 +36,7 @@ chlorinateVB nameHook (S.Vars vardecls) (S.Body statements) results
 chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 	 = do
 		clName <- chlorinateName name
-		clParams <- M.fromList <$> mapM chlorinateVarDecl params
+		clParams <- M.fromList <$> mapM chlorinateVarDecl (splitVarDecls params)
 		clRetType <- chlorinateType pasType
 		clRetName <- nameHook name
 		let enclose body
@@ -56,7 +56,12 @@ chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 chlorinateName name
 	= return $ D.Name name
 
-chlorinateVarDecl (S.VarDecl name pasType)
+splitVarDecls vardecls = do
+	S.VarDecl names t <- vardecls
+	name <- names
+	return (name, t)
+
+chlorinateVarDecl (name, pasType)
 	 =  (,)
 	<$> chlorinateName name
 	<*> chlorinateType pasType

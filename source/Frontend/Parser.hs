@@ -47,9 +47,17 @@ varsTr
 
 varDeclTr
 	 =  VarDecl
-	<$> nameTr
-	<*  expect T.Colon
+	<$> varNamesTr
 	<*> typeTr
+
+varNamesTr
+	= mplus end next
+	where
+		end = expect T.Colon *> return []
+		next
+			 =  (:)
+			<$> nameTr
+			<*> mplus (expect T.Comma *> next) end
 
 typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
