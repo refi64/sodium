@@ -40,10 +40,9 @@ dechlorinateType = \case
 	S.ClString  -> D.HsType "String"
 	S.ClVoid -> D.HsUnit
 
-dechlorinateBody :: S.Vars -> S.VecBody -> (Fail String) D.Expression
-dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
-	let vars' = M.union vars externalVars
-	hsStatements <- mapM (dechlorinateStatement vars') statements
+dechlorinateBody :: S.VecBody -> (Fail String) D.Expression
+dechlorinateBody (S.VecBody _ statements resultExprs) = do
+	hsStatements <- mapM dechlorinateStatement statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
 	let hsStatement
 		= D.DoExecute
@@ -51,8 +50,8 @@ dechlorinateBody externalVars (S.VecBody vars statements resultExprs) = do
 		$ D.Tuple hsRetValues
 	return $ D.DoExpression (hsStatements ++ [hsStatement])
 
-dechlorinateStatement :: S.Vars -> S.VecStatement -> (Fail String) D.DoStatement
-dechlorinateStatement vars = \case
+dechlorinateStatement :: S.VecStatement -> (Fail String) D.DoStatement
+dechlorinateStatement = \case
 	S.VecExecute retIndices (S.ExecuteRead t) [S.VecLValue name i] -> do
 		let hsRetPat
 			= D.PatTuple
@@ -82,7 +81,7 @@ dechlorinateStatement vars = \case
 			<-  D.Range
 			<$> dechlorinateExpression exprFrom
 			<*> dechlorinateExpression exprTo
-		hsBody <- dechlorinateBody vars clBody
+		hsBody <- dechlorinateBody clBody
 		let hsArgExpr
 			= D.Tuple
 			$ map D.Access
@@ -111,8 +110,8 @@ dechlorinateStatement vars = \case
 			)
 	S.VecIfStatement retIndices (S.VecIfBranch expr bodyThen bodyElse) -> do
 		hsExpr <- dechlorinateExpression expr
-		hsBodyThen <- dechlorinateBody vars bodyThen
-		hsBodyElse <- dechlorinateBody vars bodyElse
+		hsBodyThen <- dechlorinateBody bodyThen
+		hsBodyElse <- dechlorinateBody bodyElse
 		let hsRetPat
 			= D.PatTuple
 			$ map
@@ -127,25 +126,24 @@ dechlorinateFunc :: S.Func S.VecBody -> (Fail String) D.Def
 dechlorinateFunc (S.Func S.NameMain params S.ClVoid clBody)
 	= do
 		guard $ M.null params
-		hsBody <- dechlorinateBody M.empty clBody
+		hsBody <- dechlorinateBody clBody
 		return $ D.ValueDef (D.PatFunc "main" []) hsBody
 dechlorinateFunc (S.Func name params retType clBody)
 	 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
-	<$> dechlorinatePureBody params clBody
+	<$> dechlorinatePureBody clBody
 	where
 		paramNames
 			= map transformName
 			$ M.keys params
 
-dechlorinatePureBody :: S.Vars -> S.VecBody -> (Fail String) D.Expression
-dechlorinatePureBody externalVars (S.VecBody vars statements resultExprs) = do
-	let vars' = M.union vars externalVars
-	hsValueDefs <- mapM (dechlorinatePureStatement vars') statements
+dechlorinatePureBody :: S.VecBody -> (Fail String) D.Expression
+dechlorinatePureBody (S.VecBody _ statements resultExprs) = do
+	hsValueDefs <- mapM dechlorinatePureStatement statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
 	return $ D.PureLet hsValueDefs (D.Tuple hsRetValues)
 
-dechlorinatePureStatement :: S.Vars -> S.VecStatement -> (Fail String) D.ValueDef
-dechlorinatePureStatement vars = \case
+dechlorinatePureStatement :: S.VecStatement -> (Fail String) D.ValueDef
+dechlorinatePureStatement = \case
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
 		return $ D.ValueDef (D.PatFunc (dechlorinateName name i) []) hsExpr
@@ -154,7 +152,7 @@ dechlorinatePureStatement vars = \case
 			<-  D.Range
 			<$> dechlorinateExpression exprFrom
 			<*> dechlorinateExpression exprTo
-		hsBody <- dechlorinatePureBody vars clBody
+		hsBody <- dechlorinatePureBody clBody
 		let hsArgExpr
 			= D.Tuple
 			$ map D.Access
