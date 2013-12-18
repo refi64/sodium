@@ -77,10 +77,7 @@ dechlorinateStatement = \case
 		hsExpr <- dechlorinateExpression expr
 		return $ D.DoLet (dechlorinateName name i) hsExpr
 	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
-		hsRange
-			<-  D.Range
-			<$> dechlorinateExpression exprFrom
-			<*> dechlorinateExpression exprTo
+		hsRange <- dechlorinateRange exprFrom exprTo
 		hsBody <- dechlorinateBody clBody
 		let hsArgExpr
 			= D.Tuple
@@ -136,6 +133,12 @@ dechlorinateFunc (S.Func name params retType clBody)
 			= map transformName
 			$ M.keys params
 
+dechlorinateRange :: S.VecExpression -> S.VecExpression -> (Fail String) D.Expression
+dechlorinateRange exprFrom exprTo
+	 =  D.Range
+	<$> dechlorinateExpression exprFrom
+	<*> dechlorinateExpression exprTo
+
 dechlorinatePureBody :: S.VecBody -> (Fail String) D.Expression
 dechlorinatePureBody (S.VecBody _ statements resultExprs) = do
 	hsValueDefs <- mapM dechlorinatePureStatement statements
@@ -148,10 +151,7 @@ dechlorinatePureStatement = \case
 		hsExpr <- dechlorinateExpression expr
 		return $ D.ValueDef (D.PatFunc (dechlorinateName name i) []) hsExpr
 	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
-		hsRange
-			<-  D.Range
-			<$> dechlorinateExpression exprFrom
-			<*> dechlorinateExpression exprTo
+		hsRange <- dechlorinateRange exprFrom exprTo
 		hsBody <- dechlorinatePureBody clBody
 		let hsArgExpr
 			= D.Tuple
