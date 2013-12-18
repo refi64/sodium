@@ -84,7 +84,7 @@ dechlorinateStatement = \case
 			$ map D.Access
 			$ map
 				(uncurry dechlorinateName)
-				(M.toList argIndices)
+				argIndices
 		let hsRetPat
 			= D.PatTuple
 			$ map
@@ -139,13 +139,17 @@ dechlorinateRange exprFrom exprTo
 	<$> dechlorinateExpression exprFrom
 	<*> dechlorinateExpression exprTo
 
-dechlorinatePureBody :: S.VecBody -> (Fail String) D.Expression
+dechlorinatePureBody
+	:: S.VecBody
+	-> (Fail String) D.Expression
 dechlorinatePureBody (S.VecBody _ statements resultExprs) = do
 	hsValueDefs <- mapM dechlorinatePureStatement statements
 	hsRetValues <- mapM dechlorinateExpression resultExprs
 	return $ D.PureLet hsValueDefs (D.Tuple hsRetValues)
 
-dechlorinatePureStatement :: S.VecStatement -> (Fail String) D.ValueDef
+dechlorinatePureStatement
+	:: S.VecStatement
+	-> (Fail String) D.ValueDef
 dechlorinatePureStatement = \case
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
@@ -158,7 +162,7 @@ dechlorinatePureStatement = \case
 			$ map D.Access
 			$ map
 				(uncurry dechlorinateName)
-				(M.toList argIndices)
+				argIndices
 		let hsRetPat
 			= D.PatTuple
 			$ map
@@ -171,7 +175,7 @@ dechlorinatePureStatement = \case
 				, D.Lambda
 					[ D.PatTuple
 						$ map transformName
-						$ M.keys argIndices
+						$ map fst argIndices
 					, D.PatTuple [transformName name]
 					]
 					hsBody

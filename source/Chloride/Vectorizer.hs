@@ -85,7 +85,7 @@ vectorizeStatement = \case
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
 		mapM registerIndexUpdate (_forClosure forCycle)
 		let vecForCycle = VecForCycle
-			(M.fromList argIndices)
+			argIndices
 			(_forName forCycle)
 			vecFrom vecTo
 			vecBody

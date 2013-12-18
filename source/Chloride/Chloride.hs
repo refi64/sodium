@@ -87,7 +87,7 @@ data VecStatement
 
 data VecForCycle
 	= VecForCycle
-	{ _vecForArgIndices :: Indices
+	{ _vecForArgIndices :: IndicesList
 	, _vecForName :: Name
 	, _vecForFrom :: VecExpression
 	, _vecForTo :: VecExpression
