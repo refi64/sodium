@@ -77,11 +77,10 @@ vectorizeStatement = \case
 		vecTo <- readerToState $ vectorizeExpression (_forTo forCycle)
 		-- TODO: wrap inner names
 		-- in NameUnique to resolve name conflicts
-		let closure
-			= M.fromList
-			$ map (,1)
-			$ _forName forCycle
-			: _forClosure forCycle
+		let closure'
+			= M.insert (_forName forCycle) (-1)
+			$ M.fromList (map (,1) $ _forClosure forCycle)
+		closure <- M.union closure' <$> get
 		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
 		mapM registerIndexUpdate (_forClosure forCycle)
 		let vecForCycle = VecForCycle
@@ -128,7 +127,9 @@ lookupIndex name = do
 
 registerIndexUpdate name = do
 	index <- readerToState $ lookupIndex name
-	let index' = succ index
+	index' <- if index < 0
+		then lift (Fail 0 ["Vectorizer could not update an immutable value " ++ show name])
+		else return (succ index)
 	modify $ M.insert name index'
 	return index'
 

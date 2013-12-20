@@ -27,10 +27,19 @@ transformName = \case
 	S.Name cs  -> cs
 	S.NameUnique name -> transformName name ++ "_"
 
-dechlorinateName :: S.Name -> Integer -> D.Name
+dechlorinateName :: S.Name -> Integer -> (Fail String) D.Name
 dechlorinateName name i
-	| i > 0 = transformName name ++ genericReplicate (pred i) '\''
-	| otherwise = error $ "Accessing uninitialized variable " ++ show name
+	| i < 0
+		= return
+		$ "const'"
+			++ genericReplicate (pred (-i)) '\''
+			++ transformName name
+	| i > 0
+		= return
+		$ transformName name
+			++ genericReplicate (pred i) '\''
+	| otherwise
+		= Fail 0 ["Accessing uninitialized variable " ++ show name]
 
 dechlorinateType :: S.ClType -> D.HsType
 dechlorinateType = \case
@@ -53,9 +62,9 @@ dechlorinateBody (S.VecBody _ statements resultExprs) = do
 dechlorinateStatement :: S.VecStatement -> (Fail String) D.DoStatement
 dechlorinateStatement = \case
 	S.VecExecute retIndices (S.ExecuteRead t) [S.VecLValue name i] -> do
-		let hsRetPat
-			= D.PatTuple
-			$ map
+		hsRetPat
+			<-  D.PatTuple
+			<$> mapM
 				(uncurry dechlorinateName)
 				retIndices
 		let hsExpr
@@ -75,32 +84,25 @@ dechlorinateStatement = \case
 				 $ hsExprs
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
-		return $ D.DoLet (dechlorinateName name i) hsExpr
+		D.DoLet <$> dechlorinateName name i <*> return hsExpr
 	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
 		hsRange <- dechlorinateRange exprFrom exprTo
 		hsBody <- dechlorinateBody clBody
-		let hsArgExpr
-			= D.Tuple
-			$ map D.Access
-			$ map
-				(uncurry dechlorinateName)
-				argIndices
-		let hsRetPat
-			= D.PatTuple
-			$ map
-				(uncurry dechlorinateName)
-				retIndices
+		hsArgExpr
+			<-  D.Tuple
+			<$> (map D.Access
+			<$> dechlorinateIndicesList argIndices)
+		hsRetPat
+			<-  D.PatTuple
+			<$> dechlorinateIndicesList retIndices
+		hsFoldLambda
+			<-  dechlorinateFoldLambda retIndices name
+			<*> return hsBody
 		return $ D.DoBind
 			hsRetPat
 			(beta
 				[ D.Access "foldM"
-				, D.Lambda
-					[ D.PatTuple
-						$ map transformName
-						$ map fst retIndices
-					, D.PatTuple [transformName name]
-					]
-					hsBody
+				, hsFoldLambda
 				, hsArgExpr
 				, hsRange
 				]
@@ -109,11 +111,9 @@ dechlorinateStatement = \case
 		hsExpr <- dechlorinateExpression expr
 		hsBodyThen <- dechlorinateBody bodyThen
 		hsBodyElse <- dechlorinateBody bodyElse
-		let hsRetPat
-			= D.PatTuple
-			$ map
-				(uncurry dechlorinateName)
-				retIndices
+		hsRetPat
+			<-  D.PatTuple
+			<$> dechlorinateIndicesList retIndices
 		return $ D.DoBind
 			hsRetPat
 			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
@@ -139,6 +139,17 @@ dechlorinateRange exprFrom exprTo
 	<$> dechlorinateExpression exprFrom
 	<*> dechlorinateExpression exprTo
 
+dechlorinateFoldLambda :: S.IndicesList -> S.Name -> (Fail String) (D.Expression -> D.Expression)
+dechlorinateFoldLambda indices name = do
+	hsNames
+		<- mapM (\name -> dechlorinateName name 1)
+		 $ map fst indices
+	hsName <- dechlorinateName name (-1)
+	return $ D.Lambda
+		[ D.PatTuple hsNames
+		, D.PatTuple [hsName]
+		]
+
 dechlorinatePureBody
 	:: S.VecBody
 	-> (Fail String) D.Expression
@@ -153,32 +164,24 @@ dechlorinatePureStatement
 dechlorinatePureStatement = \case
 	S.VecAssign name i expr -> do
 		hsExpr <- dechlorinateExpression expr
-		return $ D.ValueDef (D.PatFunc (dechlorinateName name i) []) hsExpr
+		hsName <- dechlorinateName name i
+		return $ D.ValueDef (D.PatFunc hsName []) hsExpr
 	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
 		hsRange <- dechlorinateRange exprFrom exprTo
 		hsBody <- dechlorinatePureBody clBody
-		let hsArgExpr
-			= D.Tuple
-			$ map D.Access
-			$ map
-				(uncurry dechlorinateName)
-				argIndices
-		let hsRetPat
-			= D.PatTuple
-			$ map
-				(uncurry dechlorinateName)
-				retIndices
+		hsArgExpr
+			<- D.Tuple
+			<$> (map D.Access
+				<$> dechlorinateIndicesList argIndices)
+		hsRetPat
+			<-  D.PatTuple
+			<$> dechlorinateIndicesList retIndices
+		hsFoldLambda <- dechlorinateFoldLambda retIndices name <*> return hsBody
 		return $ D.ValueDef
 			hsRetPat
 			(beta
 				[ D.Access "foldl"
-				, D.Lambda
-					[ D.PatTuple
-						$ map transformName
-						$ map fst argIndices
-					, D.PatTuple [transformName name]
-					]
-					hsBody
+				, hsFoldLambda
 				, hsArgExpr
 				, hsRange
 				]
@@ -187,9 +190,12 @@ dechlorinatePureStatement = \case
 
 beta = foldl1 D.Beta
 
+dechlorinateIndicesList
+	= mapM (uncurry dechlorinateName)
+
 dechlorinateArgument :: S.VecArgument -> (Fail String) D.Expression
 dechlorinateArgument = \case
-	S.VecLValue name i -> return $ D.Access (dechlorinateName name i)
+	S.VecLValue name i -> D.Access <$> dechlorinateName name i
 	S.VecRValue expr -> dechlorinateExpression expr
 
 dechlorinateExpression :: S.VecExpression -> (Fail String) D.Expression
@@ -200,11 +206,11 @@ dechlorinateExpression = \case
 		S.BTrue  -> D.BTrue
 		S.BFalse -> D.BFalse
 		S.Void   -> D.Tuple []
-	S.VecAccess name i -> return $ D.Access (dechlorinateName name i)
+	S.VecAccess name i -> D.Access <$> dechlorinateName name i
 	S.VecCall callName exprs -> do
 		hsExprs <- mapM dechlorinateExpression exprs
 		let binary hsOp = case hsExprs of
-			hsExpr1:hsExpr2:hsExprs -> 
+			hsExpr1:hsExpr2:hsExprs ->
 				return $ beta (D.Binary hsOp hsExpr1 hsExpr2 : hsExprs)
 			e -> error (show e)
 		case callName of
