@@ -119,13 +119,13 @@ dechlorinateStatement = \case
 			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
 	st -> error (show st)
 
-dechlorinateFunc :: S.Func S.VecBody -> (Fail String) D.Def
-dechlorinateFunc (S.Func S.NameMain params S.ClVoid clBody)
+dechlorinateFunc :: S.VecFunc -> (Fail String) D.Def
+dechlorinateFunc (S.VecFunc (S.FuncSig S.NameMain params S.ClVoid) clBody)
 	= do
 		guard $ M.null params
 		hsBody <- dechlorinateBody clBody
 		return $ D.ValueDef (D.PatFunc "main" []) hsBody
-dechlorinateFunc (S.Func name params retType clBody)
+dechlorinateFunc (S.VecFunc (S.FuncSig name params retType) clBody)
 	 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
 	<$> dechlorinatePureBody clBody
 	where

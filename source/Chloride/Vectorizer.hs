@@ -17,11 +17,11 @@ vectorize (Program funcs) = do
 	vecFuncs <- mapM vectorizeFunc funcs
 	return $ VecProgram vecFuncs
 
-vectorizeFunc :: Func Body -> (Fail String) (Func VecBody)
+vectorizeFunc :: Func -> (Fail String) VecFunc
 vectorizeFunc func = do
-	let closure = initIndices 1 (_funcParams func)
+	let closure = initIndices 1 (_funcParams $ _funcSig func)
 	vecBody <- vectorizeBody closure (_funcBody func)
-	return $ func { _funcBody = vecBody }
+	return $ VecFunc (_funcSig func) vecBody
 
 vectorizeBody :: Indices -> Body -> (Fail String) VecBody
 vectorizeBody closure body = do

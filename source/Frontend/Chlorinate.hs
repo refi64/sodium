@@ -18,10 +18,7 @@ chlorinate (S.Program funcs vars body)
 		clMain <- do
 			clBody <- chlorinateVB chlorinateName vars body []
 			return $ D.Func
-				D.NameMain
-				M.empty
-				D.ClVoid
-				clBody
+				(D.FuncSig D.NameMain M.empty D.ClVoid) clBody
 		clFuncs <- mapM
 			chlorinateFunc funcs
 		return $ D.Program (clMain:clFuncs)
@@ -46,7 +43,7 @@ chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 				(M.singleton clRetName clRetType)
 			}
 		clBody <- enclose <$> chlorinateVB nameHook vars body [name]
-		return $ D.Func clName clParams clRetType clBody
+		return $ D.Func (D.FuncSig clName clParams clRetType) clBody
 	where
 		nameHook cs =
 			if cs == name

@@ -9,19 +9,30 @@ data Name
 	deriving (Eq, Ord, Show)
 
 data Program
-	= Program [Func Body]
+	= Program [Func]
 	deriving (Show)
 
 data VecProgram
-	= VecProgram [Func VecBody]
+	= VecProgram [VecFunc]
 	deriving (Show)
 
-data Func b
-	= Func
+data FuncSig
+	= FuncSig
 	{ _funcName :: Name
 	, _funcParams :: Vars
 	, _funcRetType :: ClType
-	, _funcBody :: b
+	} deriving (Show)
+
+data Func
+	= Func
+	{ _funcSig :: FuncSig
+	, _funcBody :: Body
+	} deriving (Show)
+
+data VecFunc
+	= VecFunc
+	{ _vecFuncSig :: FuncSig
+	, _vecFuncBody :: VecBody
 	} deriving (Show)
 
 data Body

@@ -14,11 +14,11 @@ uncurse (Program funcs) = do
 	uncFuncs <- mapM uncurseFunc funcs
 	return $ Program uncFuncs
 
-uncurseFunc :: Func Body -> (Fail String) (Func Body)
+uncurseFunc :: Func -> (Fail String) Func
 uncurseFunc func = do
 	uncBody <- runReaderT
 		(uncurseBody (_funcBody func))
-		(_funcParams func)
+		(_funcParams $ _funcSig func)
 	return $ func { _funcBody = uncBody }
 
 uncurseBody :: Body -> ReaderT Vars (Fail String) Body
