@@ -16,19 +16,18 @@ chlorinate :: S.Program -> (Fail String) D.Program
 chlorinate (S.Program funcs vars body)
 	= do
 		clMain <- do
-			clBody <- chlorinateVB chlorinateName vars body []
+			clBody <- chlorinateVB chlorinateName vars body
 			return $ D.Func
-				(D.FuncSig D.NameMain M.empty D.ClVoid) clBody
+				(D.FuncSig D.NameMain M.empty D.ClVoid) clBody []
 		clFuncs <- mapM
 			chlorinateFunc funcs
 		return $ D.Program (clMain:clFuncs)
 
-chlorinateVB nameHook (S.Vars vardecls) (S.Body statements) results
+chlorinateVB nameHook (S.Vars vardecls) (S.Body statements)
 	= do
 		clVars <- mapM chlorinateVarDecl (splitVarDecls vardecls)
 		clStatements <- mapM (chlorinateStatement nameHook) statements
-		clResults <- map D.Access <$> mapM nameHook results
-		return $ D.Body (M.fromList clVars) clStatements clResults
+		return $ D.Body (M.fromList clVars) clStatements
 
 chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 	 = do
@@ -42,13 +41,12 @@ chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
 				(D._bodyVars body)
 				(M.singleton clRetName clRetType)
 			}
-		clBody <- enclose <$> chlorinateVB nameHook vars body [name]
-		return $ D.Func (D.FuncSig clName clParams clRetType) clBody
+		clBody <- enclose <$> chlorinateVB nameHook vars body
+		return $ D.Func (D.FuncSig clName clParams clRetType) clBody [D.Access clRetName]
 	where
-		nameHook cs =
-			if cs == name
-				then D.NameUnique <$> chlorinateName cs
-				else chlorinateName cs
+		nameHook cs
+			| cs == name = D.NameUnique <$> chlorinateName cs
+			| otherwise  = chlorinateName cs
 
 chlorinateName name
 	= return $ D.Name name
@@ -85,19 +83,18 @@ chlorinateStatement nameHook = \case
 			clName <- nameHook name
 			clFromExpr <- chlorinateExpr nameHook fromExpr
 			clToExpr <- chlorinateExpr nameHook toExpr
-			clBody <- chlorinateVB nameHook (S.Vars []) body closure
+			clBody <- chlorinateVB nameHook (S.Vars []) body
 			return $ D.ForCycle clClosure clName clFromExpr clToExpr clBody
 	S.IfBranch closure expr bodyThen mBodyElse
 		-> D.IfStatement <$> do
 			clClosure <- mapM nameHook closure
 			clExpr <- chlorinateExpr nameHook expr
-			clBodyThen <- chlorinateVB nameHook (S.Vars []) bodyThen closure
+			clBodyThen <- chlorinateVB nameHook (S.Vars []) bodyThen
 			clBodyElse <- case mBodyElse of
 				Just bodyElse ->
-					chlorinateVB nameHook (S.Vars []) bodyElse closure
-				Nothing -> do
-					clResults <- map D.Access <$> mapM nameHook closure
-					return $ D.Body M.empty [] clResults
+					chlorinateVB nameHook (S.Vars []) bodyElse
+				Nothing ->
+					return $ D.Body M.empty []
 			return $ D.IfBranch clClosure clExpr clBodyThen clBodyElse
 
 

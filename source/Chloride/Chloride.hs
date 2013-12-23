@@ -27,6 +27,7 @@ data Func
 	= Func
 	{ _funcSig :: FuncSig
 	, _funcBody :: Body
+	, _funcResults :: [Expression]
 	} deriving (Show)
 
 data VecFunc
@@ -39,7 +40,6 @@ data Body
 	= Body
 	{ _bodyVars :: Vars
 	, _bodyStatements :: [Statement]
-	, _bodyResults :: [Expression]
 	} deriving (Show)
 
 data Argument

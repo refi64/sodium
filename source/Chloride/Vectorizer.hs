@@ -20,11 +20,11 @@ vectorize (Program funcs) = do
 vectorizeFunc :: Func -> (Fail String) VecFunc
 vectorizeFunc func = do
 	let closure = initIndices 1 (_funcParams $ _funcSig func)
-	vecBody <- vectorizeBody closure (_funcBody func)
+	vecBody <- vectorizeBody closure (_funcBody func) (_funcResults func)
 	return $ VecFunc (_funcSig func) vecBody
 
-vectorizeBody :: Indices -> Body -> (Fail String) VecBody
-vectorizeBody closure body = do
+vectorizeBody :: Indices -> Body -> [Expression] -> (Fail String) VecBody
+vectorizeBody closure body results = do
 	let indices = M.union
 		(initIndices 0 (_bodyVars body))
 		closure
@@ -34,7 +34,7 @@ vectorizeBody closure body = do
 	let vectorizeResult
 		= readerToState
 		$ mapM vectorizeExpression
-		$ (_bodyResults body)
+		$ results
 	flip evalStateT indices $ do
 		vecStatements <- vectorizeStatements
 		vecResult <- vectorizeResult
@@ -81,7 +81,9 @@ vectorizeStatement = \case
 			= M.insert (_forName forCycle) (-1)
 			$ M.fromList (map (,1) $ _forClosure forCycle)
 		closure <- M.union closure' <$> get
-		vecBody <- lift $ vectorizeBody closure (_forBody forCycle)
+		vecBody <- lift $ vectorizeBody closure
+			(_forBody forCycle)
+			(map Access $ _forClosure forCycle)
 		mapM registerIndexUpdate (_forClosure forCycle)
 		let vecForCycle = VecForCycle
 			argIndices
@@ -93,8 +95,14 @@ vectorizeStatement = \case
 	IfStatement ifBranch -> do
 		vecExpr <- readerToState $ vectorizeExpression (_ifExpr ifBranch)
 		closure <- readerToState $ closedIndices (_ifClosure ifBranch)
-		vecBodyThen <- lift $ vectorizeBody (M.fromList closure) (_ifThen ifBranch)
-		vecBodyElse <- lift $ vectorizeBody (M.fromList closure) (_ifElse ifBranch)
+		vecBodyThen <- lift $ vectorizeBody
+			(M.fromList closure)
+			(_ifThen ifBranch)
+			(map Access $ _ifClosure ifBranch)
+		vecBodyElse <- lift $ vectorizeBody
+			(M.fromList closure)
+			(_ifElse ifBranch)
+			(map Access $ _ifClosure ifBranch)
 		mapM registerIndexUpdate (_ifClosure ifBranch)
 		let vecIfBranch = VecIfBranch
 			vecExpr
