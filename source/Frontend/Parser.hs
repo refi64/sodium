@@ -122,8 +122,7 @@ executeTr
 
 forCycleTr
 	 = ForCycle
-	<$> sodiumTr
-	<*  expect T.KwFor
+	<$  expect T.KwFor
 	<*> nameTr
 	<*  expect T.Assign
 	<*> conditionTr
@@ -134,8 +133,7 @@ forCycleTr
 
 ifBranchTr
 	 =  IfBranch
-	<$> sodiumTr
-	<*  expect T.KwIf
+	<$  expect T.KwIf
 	<*> conditionTr
 	<*> thenClause
 	<*> optional elseClause
