@@ -96,7 +96,7 @@ dechlorinateStatement = \case
 			<-  D.PatTuple
 			<$> dechlorinateIndicesList retIndices
 		hsFoldLambda
-			<-  dechlorinateFoldLambda retIndices name
+			<-  dechlorinateFoldLambda argIndices name
 			<*> return hsBody
 		return $ D.DoBind
 			hsRetPat
@@ -141,9 +141,7 @@ dechlorinateRange exprFrom exprTo
 
 dechlorinateFoldLambda :: S.IndicesList -> S.Name -> (Fail String) (D.Expression -> D.Expression)
 dechlorinateFoldLambda indices name = do
-	hsNames
-		<- mapM (\name -> dechlorinateName name 1)
-		 $ map fst indices
+	hsNames <- dechlorinateIndicesList indices
 	hsName <- dechlorinateName name (-1)
 	return $ D.Lambda
 		[ D.PatTuple hsNames
@@ -176,7 +174,7 @@ dechlorinatePureStatement = \case
 		hsRetPat
 			<-  D.PatTuple
 			<$> dechlorinateIndicesList retIndices
-		hsFoldLambda <- dechlorinateFoldLambda retIndices name <*> return hsBody
+		hsFoldLambda <- dechlorinateFoldLambda argIndices name <*> return hsBody
 		return $ D.ValueDef
 			hsRetPat
 			(beta

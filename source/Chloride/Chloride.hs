@@ -56,8 +56,7 @@ data Statement
 
 data ForCycle
 	= ForCycle
-	{ _forClosure :: [Name]
-	, _forName :: Name
+	{ _forName :: Name
 	, _forFrom :: Expression
 	, _forTo :: Expression
 	, _forBody :: Body
@@ -65,8 +64,7 @@ data ForCycle
 
 data IfBranch
 	= IfBranch
-	{ _ifClosure :: [Name]
-	, _ifExpr :: Expression
+	{ _ifExpr :: Expression
 	, _ifThen :: Body
 	, _ifElse :: Body
 	} deriving (Show)

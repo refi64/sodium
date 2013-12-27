@@ -6,6 +6,7 @@ module Chloride.Vectorizer
 
 import Control.Monad
 import Control.Applicative
+import Data.List
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
@@ -20,28 +21,37 @@ vectorize (Program funcs) = do
 vectorizeFunc :: Func -> (Fail String) VecFunc
 vectorizeFunc func = do
 	let closure = initIndices 1 (_funcParams $ _funcSig func)
-	vecBody <- vectorizeBody closure (_funcBody func) (_funcResults func)
+	(vecBodyGen, _) <- vectorizeBody closure (_funcBody func)
+	vecBody <- vecBodyGen $ _funcResults func
 	return $ VecFunc (_funcSig func) vecBody
 
-vectorizeBody :: Indices -> Body -> [Expression] -> (Fail String) VecBody
-vectorizeBody closure body results = do
+vectorizeBody :: Indices -> Body -> (Fail String) ([Expression] -> (Fail String) VecBody, [Name])
+vectorizeBody closure body = do
 	let indices = M.union
 		(initIndices 0 (_bodyVars body))
 		closure
-	let vectorizeStatements = mapM
-		vectorizeStatement
-		(_bodyStatements body)
-	let vectorizeResult
-		= readerToState
-		$ mapM vectorizeExpression
-		$ results
-	flip evalStateT indices $ do
-		vecStatements <- vectorizeStatements
-		vecResult <- vectorizeResult
+	(vecStatements, indices')
+		<- flip runStateT indices
+		$ mapM vectorizeStatement
+			(_bodyStatements body)
+	let changed
+		= M.keys
+		$ M.filter id
+		$ M.intersectionWith
+		(\i j -> if i /= j
+			then True
+			else False)
+		indices indices'
+	let vecBodyGen results = do
+		vecResults
+			<- flip runReaderT indices'
+			$ mapM vectorizeExpression
+				results
 		return $ VecBody
 			(_bodyVars body)
 			vecStatements
-			vecResult
+			vecResults
+	return (vecBodyGen, changed)
 
 vectorizeArgument :: Argument -> ReaderT Indices (Fail String) VecArgument
 vectorizeArgument = \case
@@ -72,43 +82,45 @@ vectorizeStatement = \case
 		retIndices <- readerToState $ closedIndices sidenames
 		return $ VecExecute retIndices name vecArgs
 	ForStatement forCycle -> do
-		argIndices <- readerToState $ closedIndices (_forClosure forCycle)
 		vecFrom <- readerToState $ vectorizeExpression (_forFrom forCycle)
 		vecTo <- readerToState $ vectorizeExpression (_forTo forCycle)
 		-- TODO: wrap inner names
 		-- in NameUnique to resolve name conflicts
-		let closure'
+		preIndices <- get
+		let closure
 			= M.insert (_forName forCycle) (-1)
-			$ M.fromList (map (,1) $ _forClosure forCycle)
-		closure <- M.union closure' <$> get
-		vecBody <- lift $ vectorizeBody closure
-			(_forBody forCycle)
-			(map Access $ _forClosure forCycle)
-		mapM registerIndexUpdate (_forClosure forCycle)
+			$ preIndices
+		(vecBodyGen, changed) <- lift $ vectorizeBody closure (_forBody forCycle)
+		vecBody <- lift $ vecBodyGen (map Access changed)
+		mapM registerIndexUpdate changed
+		postIndices <- get
+		argIndices <- lift $ runReaderT (closedIndices changed) preIndices
+		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
 		let vecForCycle = VecForCycle
 			argIndices
 			(_forName forCycle)
 			vecFrom vecTo
 			vecBody
-		retIndices <- readerToState $ closedIndices (_forClosure forCycle)
 		return $ VecForStatement retIndices vecForCycle
 	IfStatement ifBranch -> do
 		vecExpr <- readerToState $ vectorizeExpression (_ifExpr ifBranch)
-		closure <- readerToState $ closedIndices (_ifClosure ifBranch)
-		vecBodyThen <- lift $ vectorizeBody
-			(M.fromList closure)
+		preIndices <- get
+		(vecBodyThenGen, changedThen) <- lift $ vectorizeBody
+			preIndices
 			(_ifThen ifBranch)
-			(map Access $ _ifClosure ifBranch)
-		vecBodyElse <- lift $ vectorizeBody
-			(M.fromList closure)
+		(vecBodyElseGen, changedElse) <- lift $ vectorizeBody
+			preIndices
 			(_ifElse ifBranch)
-			(map Access $ _ifClosure ifBranch)
-		mapM registerIndexUpdate (_ifClosure ifBranch)
+		let changed = nub $ changedThen ++ changedElse
+		vecBodyThen <- lift $ vecBodyThenGen (map Access changed)
+		vecBodyElse <- lift $ vecBodyElseGen (map Access changed)
 		let vecIfBranch = VecIfBranch
 			vecExpr
 			vecBodyThen
 			vecBodyElse
-		retIndices <- readerToState $ closedIndices (_ifClosure ifBranch)
+		mapM registerIndexUpdate changed
+		postIndices <- get
+		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
 		return $ VecIfStatement retIndices vecIfBranch
 
 vectorizeExpression :: Expression -> ReaderT Indices (Fail String) VecExpression

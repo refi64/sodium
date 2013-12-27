@@ -83,7 +83,7 @@ chlorinateStatement nameHook = \case
 			clFromExpr <- chlorinateExpr nameHook fromExpr
 			clToExpr <- chlorinateExpr nameHook toExpr
 			clBody <- chlorinateVB nameHook (S.Vars []) body
-			return $ D.ForCycle (error "NO `FOR` CLOSURE") clName clFromExpr clToExpr clBody
+			return $ D.ForCycle clName clFromExpr clToExpr clBody
 	S.IfBranch expr bodyThen mBodyElse
 		-> D.IfStatement <$> do
 			clExpr <- chlorinateExpr nameHook expr
@@ -93,7 +93,7 @@ chlorinateStatement nameHook = \case
 					chlorinateVB nameHook (S.Vars []) bodyElse
 				Nothing ->
 					return $ D.Body M.empty []
-			return $ D.IfBranch (error "NO `IF` CLOSURE") clExpr clBodyThen clBodyElse
+			return $ D.IfBranch clExpr clBodyThen clBodyElse
 
 
 chlorinateArgument nameHook = \case
