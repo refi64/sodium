@@ -39,7 +39,8 @@ dechlorinateName name i
 		$ transformName name
 			++ genericReplicate (pred i) '\''
 	| otherwise
-		= Fail 0 ["Accessing uninitialized variable " ++ show name]
+		= annotate Nothing 0
+			("Accessing uninitialized variable " ++ show name)
 
 dechlorinateType :: S.ClType -> D.HsType
 dechlorinateType = \case
@@ -184,6 +185,16 @@ dechlorinatePureStatement = \case
 				, hsRange
 				]
 			)
+	S.VecIfStatement retIndices (S.VecIfBranch expr bodyThen bodyElse) -> do
+		hsExpr <- dechlorinateExpression expr
+		hsBodyThen <- dechlorinatePureBody bodyThen
+		hsBodyElse <- dechlorinatePureBody bodyElse
+		hsRetPat
+			<-  D.PatTuple
+			<$> dechlorinateIndicesList retIndices
+		return $ D.ValueDef
+			hsRetPat
+			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
 	st -> error (show st)
 
 beta = foldl1 D.Beta

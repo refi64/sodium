@@ -146,10 +146,12 @@ lookupIndex name = do
 		("Vectorizer could not access index of " ++ show name)
 
 registerIndexUpdate name = do
+	let indexUpdate index
+		| index < 0 = annotate Nothing 0
+			("Vectorizer could not update an immutable value " ++ show name)
+		| otherwise = return (succ index)
 	index <- readerToState $ lookupIndex name
-	index' <- if index < 0
-		then lift (Fail 0 ["Vectorizer could not update an immutable value " ++ show name])
-		else return (succ index)
+	index' <- lift $ indexUpdate index
 	modify $ M.insert name index'
 	return index'
 
