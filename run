@@ -1,3 +1,10 @@
 #!/bin/bash
 
-ghc source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir build -isource -o exe && ./exe target.pas target.hs
+ghc source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir build -isource -o exe &&
+for FILE in ./test/source/*.pas
+do
+	FILENAME=$(basename $FILE .pas)
+	echo -e '\n'
+	echo '-----------------' $FILENAME '-----------------'
+	./exe $FILE ./test/dest/$FILENAME.hs
+done
