@@ -39,6 +39,7 @@ transformName = \case
 			, "foldl"
 			, "map"
 			, "filter"
+			, "undefined"
 			]
 
 dechlorinateName :: S.Name -> Integer -> (Fail String) D.Name
@@ -53,14 +54,13 @@ dechlorinateName name i
 		$ transformName name
 			++ genericReplicate (pred i) '\''
 	| otherwise
-		= annotate Nothing 0
-			("Accessing uninitialized variable " ++ show name)
+		= return "undefined"
 
 dechlorinateType :: S.ClType -> D.HsType
 dechlorinateType = \case
-	S.ClInteger -> D.HsType "Integer"
+	S.ClInteger -> D.HsType "Int"
 	S.ClDouble  -> D.HsType "Double"
-	S.ClBoolean -> D.HsType "Boolean"
+	S.ClBoolean -> D.HsType "Bool"
 	S.ClString  -> D.HsType "String"
 	S.ClVoid -> D.HsUnit
 
