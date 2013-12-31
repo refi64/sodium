@@ -135,3 +135,5 @@ chlorinateOp = \case
 	S.OpLess -> return D.OpLess
 	S.OpMore -> return D.OpMore
 	S.OpEquals -> return D.OpEquals
+	S.OpAnd -> return D.OpAnd
+	S.OpOr -> return D.OpOr
