@@ -13,12 +13,15 @@ import Backend.Render
 import Chloride.Vectorizer
 import Chloride.IOMagic
 import Success
+import System.Exit
 
 main = do
 	args <- getArgs
 	case args of
 		[filename1, filename2] -> processFiles filename1 filename2
-		_ -> putStrLn "usage: sodium filename.pas filename.hs"
+		_ -> do 
+			putStrLn "usage: sodium filename.pas filename.hs"
+			exitWith $ ExitFailure 1
 
 processFiles :: String -> String -> IO ()
 processFiles filename1 filename2 = do
@@ -30,6 +33,7 @@ processFiles filename1 filename2 = do
 		Fail _ msgs -> do
 			putStrLn "Can\'t translate."
 			processFail msgs
+			exitWith $ ExitFailure 1
 
 processFail :: [String] -> IO ()
 processFail = \case

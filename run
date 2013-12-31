@@ -6,5 +6,14 @@ do
 	FILENAME=$(basename $FILE .pas)
 	echo -e '\n'
 	echo '-----------------' $FILENAME '-----------------'
-	./exe $FILE ./test/dest/$FILENAME.hs
+	./exe $FILE ./test/dest/$FILENAME.hs &&
+	echo "-----------------FPC-----------------" &&
+	fpc -FE./test/source/bin -FU./test/source/obj $FILE &&
+	echo "-----------------GHC-----------------" &&
+	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME &&
+	echo "-----------------PASCAL-----------------" &&
+	./test/source/bin/$FILENAME &&
+	echo "-----------------HASKELL-----------------" &&
+	./test/dest/bin/$FILENAME
 done
+exit $?
