@@ -1,42 +1,41 @@
 #!/bin/bash
 
+TMPFILE=$(mktemp)
+
 ghc source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir build -isource -o exe &&
 for FILE in ./test/source/*.pas
 do
 	FILENAME=$(basename $FILE .pas)
 	echo -e '\n'
-	echo '-----------------' $FILENAME '-----------------'
-	./exe $FILE ./test/dest/$FILENAME.hs &&
-	echo "-----------------FPC-----------------" &&
-	fpc -FE./test/source/bin -FU./test/source/obj $FILE &&
-	echo "-----------------GHC-----------------" &&
-	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME
-done
+	./exe $FILE ./test/dest/$FILENAME.hs &> $TMPFILE &&
+	fpc -FE./test/source/bin -FU./test/source/obj $FILE &> $TMPFILE &&
+	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME &> $TMPFILE
+	if [ $? != 0 ]
+	then
+		echo "-----Error in $FILENAME:-----"
+		cat $TMPFILE
+		continue
+	fi
 
-if [ $? == 0 ]
-then
-	for FILE in ./test/source/bin/*
-	do
-		FILENAME=$(basename $FILE .pas)
-		ls ./test/input/$FILENAME.in.* &> /dev/null
-		if [ $? != 0 ]
-		then
-			./test/source/bin/$FILENAME > "./test/source/$FILENAME.out" &&
-			./test/dest/bin/$FILENAME > "./test/dest/$FILENAME.out" &&
-			echo "-----------------diff " $FILENAME "-----------------" &&
-			diff -y "./test/source/$FILENAME.out" "./test/dest/$FILENAME.out"
-		else
-			for FILEIN in ./test/input/$FILENAME.in.*
-			do
-				FILEINNAME=$(basename $FILEIN)
-				NUMTEST="${FILEINNAME##*.}"
-				./test/source/bin/$FILENAME < $FILEIN > "./test/source/$FILENAME.out.$NUMTEST" &&
-				./test/dest/bin/$FILENAME < $FILEIN > "./test/dest/$FILENAME.out.$NUMTEST" &&
-				echo "-----------------diff " $FILENAME " test " $NUMTEST "-----------------" &&
-				diff -y "./test/source/$FILENAME.out.$NUMTEST" "./test/dest/$FILENAME.out.$NUMTEST"
-			done
-		fi
-	done
-fi
+
+	ls ./test/input/$FILENAME.in.* &> /dev/null
+	if [ $? != 0 ]
+	then
+		./test/source/bin/$FILENAME > "./test/source/$FILENAME.out" &&
+		./test/dest/bin/$FILENAME > "./test/dest/$FILENAME.out" &&
+		echo "-----------------diff " $FILENAME "-----------------" &&
+		diff -y "./test/source/$FILENAME.out" "./test/dest/$FILENAME.out"
+	else
+		for FILEIN in ./test/input/$FILENAME.in.*
+		do
+			FILEINNAME=$(basename $FILEIN)
+			NUMTEST="${FILEINNAME##*.}"
+			./test/source/bin/$FILENAME < $FILEIN > "./test/source/$FILENAME.out.$NUMTEST" &&
+			./test/dest/bin/$FILENAME < $FILEIN > "./test/dest/$FILENAME.out.$NUMTEST" &&
+			echo "-----------------diff " $FILENAME " test " $NUMTEST "-----------------" &&
+			diff -y "./test/source/$FILENAME.out.$NUMTEST" "./test/dest/$FILENAME.out.$NUMTEST"
+		done
+	fi
+done
 
 exit $?
