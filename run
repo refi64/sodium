@@ -10,10 +10,33 @@ do
 	echo "-----------------FPC-----------------" &&
 	fpc -FE./test/source/bin -FU./test/source/obj $FILE &&
 	echo "-----------------GHC-----------------" &&
-	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME &&
-	./test/source/bin/$FILENAME < ./test/input/$FILENAME.in > ./test/source/$FILENAME.out &&
-	./test/dest/bin/$FILENAME < ./test/input/$FILENAME.in > ./test/dest/$FILENAME.out &&
-	echo "-----------------diff " $FILENAME "-----------------" &&
-	diff -y ./test/source/$FILENAME.out ./test/dest/$FILENAME.out
+	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME
 done
+
+if [ $? == 0 ]
+then
+	for FILE in ./test/source/bin/*
+	do
+		FILENAME=$(basename $FILE .pas)
+		ls ./test/input/$FILENAME.in.* &> /dev/null
+		if [ $? != 0 ]
+		then
+			./test/source/bin/$FILENAME > "./test/source/$FILENAME.out" &&
+			./test/dest/bin/$FILENAME > "./test/dest/$FILENAME.out" &&
+			echo "-----------------diff " $FILENAME "-----------------" &&
+			diff -y "./test/source/$FILENAME.out" "./test/dest/$FILENAME.out"
+		else
+			for FILEIN in ./test/input/$FILENAME.in.*
+			do
+				FILEINNAME=$(basename $FILEIN)
+				NUMTEST="${FILEINNAME##*.}"
+				./test/source/bin/$FILENAME < $FILEIN > "./test/source/$FILENAME.out.$NUMTEST" &&
+				./test/dest/bin/$FILENAME < $FILEIN > "./test/dest/$FILENAME.out.$NUMTEST" &&
+				echo "-----------------diff " $FILENAME " test " $NUMTEST "-----------------" &&
+				diff -y "./test/source/$FILENAME.out.$NUMTEST" "./test/dest/$FILENAME.out.$NUMTEST"
+			done
+		fi
+	done
+fi
+
 exit $?
