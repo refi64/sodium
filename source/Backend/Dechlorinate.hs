@@ -24,8 +24,22 @@ type VarStates = M.Map D.Name VarState
 transformName :: S.Name -> D.Name
 transformName = \case
 	S.NameMain -> "main"
-	S.Name cs  -> cs
-	S.NameUnique name -> transformName name ++ "_"
+	S.Name cs
+		-> (if reserved cs
+			then ("_'"++)
+			else id) cs
+	S.NameUnique name -> transformName name ++ "'_"
+	where
+		reserved
+			= flip elem
+			[ "let"
+			, "show"
+			, "read"
+			, "return"
+			, "foldl"
+			, "map"
+			, "filter"
+			]
 
 dechlorinateName :: S.Name -> Integer -> (Fail String) D.Name
 dechlorinateName name i
