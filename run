@@ -11,9 +11,9 @@ do
 	fpc -FE./test/source/bin -FU./test/source/obj $FILE &&
 	echo "-----------------GHC-----------------" &&
 	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME &&
-	echo "-----------------PASCAL-----------------" &&
-	./test/source/bin/$FILENAME &&
-	echo "-----------------HASKELL-----------------" &&
-	./test/dest/bin/$FILENAME
+	./test/source/bin/$FILENAME < ./test/input/$FILENAME.in > ./test/source/$FILENAME.out &&
+	./test/dest/bin/$FILENAME < ./test/input/$FILENAME.in > ./test/dest/$FILENAME.out &&
+	echo "-----------------diff " $FILENAME "-----------------" &&
+	diff -y ./test/source/$FILENAME.out ./test/dest/$FILENAME.out
 done
 exit $?
