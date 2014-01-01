@@ -1,41 +1,41 @@
 #!/bin/bash
 
-TMPFILE=$(mktemp)
-
 ghc source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir build -isource -o exe &&
-for FILE in ./test/source/*.pas
-do
+for DIR in test/source/* ; do
+for FILE in $DIR/impl/*.pas ; do
 	FILENAME=$(basename $FILE .pas)
 	echo -e '\n'
-	./exe $FILE ./test/dest/$FILENAME.hs &> $TMPFILE &&
-	fpc -FE./test/source/bin -FU./test/source/obj $FILE &> $TMPFILE &&
-	ghc ./test/dest/$FILENAME.hs -outputdir ./test/dest/obj/ -o ./test/dest/bin/$FILENAME &> $TMPFILE
-	if [ $? != 0 ]
-	then
-		echo "-----Error in $FILENAME:-----"
-		cat $TMPFILE
-		continue
-	fi
+	echo "---- PROCESSING $FILENAME -------"
 
+	TMPDIR=$(mktemp -d)
 
-	ls ./test/input/$FILENAME.in.* &> /dev/null
-	if [ $? != 0 ]
-	then
-		./test/source/bin/$FILENAME > "./test/source/$FILENAME.out" &&
-		./test/dest/bin/$FILENAME > "./test/dest/$FILENAME.out" &&
-		echo "-----------------diff " $FILENAME "-----------------" &&
-		diff -y "./test/source/$FILENAME.out" "./test/dest/$FILENAME.out"
+	mkdir $TMPDIR/fpc_obj
+	mkdir $TMPDIR/ghc_obj
+	mkdir $TMPDIR/fpc_bin
+	mkdir $TMPDIR/ghc_bin
+	./exe $FILE ./test/dest/$FILENAME.hs &> $TMPDIR/compile_out &&
+	fpc -FE$TMPDIR/fpc_bin -FU$TMPDIR/fpc_obj $FILE &> $TMPDIR/compile_out &&
+	ghc ./test/dest/$FILENAME.hs -outputdir $TMPDIR/ghc_obj -o $TMPDIR/ghc_bin/$FILENAME &> $TMPDIR/compile_out
+	if [ $? != 0 ] ; then
+		echo -e "\t!! error in $FILENAME"
+		cat $TMPDIR/compile_out
 	else
-		for FILEIN in ./test/input/$FILENAME.in.*
-		do
+		FILES_IN=test/source/$FILENAME/test_in
+		if [ -d "$FILES_IN" ] ; then
+			FILES_IN=$FILES_IN/*
+		else
+			FILES_IN=/dev/null
+		fi
+
+		for FILEIN in $FILES_IN ; do
 			FILEINNAME=$(basename $FILEIN)
-			NUMTEST="${FILEINNAME##*.}"
-			./test/source/bin/$FILENAME < $FILEIN > "./test/source/$FILENAME.out.$NUMTEST" &&
-			./test/dest/bin/$FILENAME < $FILEIN > "./test/dest/$FILENAME.out.$NUMTEST" &&
-			echo "-----------------diff " $FILENAME " test " $NUMTEST "-----------------" &&
-			diff -y "./test/source/$FILENAME.out.$NUMTEST" "./test/dest/$FILENAME.out.$NUMTEST"
+			SOURCE_OUT=$TMPDIR/source_out
+			echo -e "\t!! test " $FILEINNAME &&
+			$TMPDIR/fpc_bin/$FILENAME < $FILEIN > $TMPDIR/source_out &&
+			$TMPDIR/ghc_bin/$FILENAME < $FILEIN > $TMPDIR/dest_out &&
+			diff -y --left-column $TMPDIR/source_out $TMPDIR/dest_out
 		done
 	fi
+	rm -r $TMPDIR
 done
-
-exit $?
+done
