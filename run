@@ -1,7 +1,9 @@
 #!/bin/bash
 
-ghc source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir build -isource -o exe &&
-for DIR in test/source/* ; do
+ROOTDIR=$(dirname $0)
+
+ghc $ROOTDIR/source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir $ROOTDIR/build -i$ROOTDIR/source -o $ROOTDIR/exe &&
+for DIR in $ROOTDIR/test/source/* ; do
 for FILE in $DIR/impl/*.pas ; do
 	FILENAME=$(basename $FILE .pas)
 	echo -e '\n'
@@ -13,14 +15,15 @@ for FILE in $DIR/impl/*.pas ; do
 	mkdir $TMPDIR/ghc_obj
 	mkdir $TMPDIR/fpc_bin
 	mkdir $TMPDIR/ghc_bin
-	./exe $FILE ./test/dest/$FILENAME.hs &> $TMPDIR/compile_out &&
+	FILE_DEST=$ROOTDIR/test/dest/$FILENAME.hs
+	$ROOTDIR/exe $FILE $FILE_DEST &> $TMPDIR/compile_out &&
 	fpc -FE$TMPDIR/fpc_bin -FU$TMPDIR/fpc_obj $FILE &> $TMPDIR/compile_out &&
-	ghc ./test/dest/$FILENAME.hs -outputdir $TMPDIR/ghc_obj -o $TMPDIR/ghc_bin/$FILENAME &> $TMPDIR/compile_out
+	ghc $FILE_DEST -outputdir $TMPDIR/ghc_obj -o $TMPDIR/ghc_bin/$FILENAME &> $TMPDIR/compile_out
 	if [ $? != 0 ] ; then
 		echo -e "\t!! error in $FILENAME"
 		cat $TMPDIR/compile_out
 	else
-		FILES_IN=test/source/$FILENAME/test_in
+		FILES_IN=$DIR/test_in
 		if [ -d "$FILES_IN" ] ; then
 			FILES_IN=$FILES_IN/*
 		else
