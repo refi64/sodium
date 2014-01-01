@@ -1,6 +1,6 @@
 function message: String;
 begin
-	message := 'Hello, world!';
+	message := 'Hello, pure function!';
 end;
 
 var
