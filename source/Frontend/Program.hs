@@ -38,6 +38,7 @@ data Statement
 	| Execute Name [Expression]
 	| ForCycle Name Expression Expression Body
 	| IfBranch Expression Body (Maybe Body)
+	| CaseBranch Expression [([Expression], Body)] (Maybe Body)
 	deriving (Show)
 
 data Expression
@@ -59,6 +60,7 @@ data Operator
 	| OpEquals
 	| OpAnd
 	| OpOr
+	| OpRange
 	deriving (Show)
 
 data PasType

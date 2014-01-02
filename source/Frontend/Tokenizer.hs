@@ -22,6 +22,7 @@ tokenTr = msum
 	, [RBrace] <$ char '}'
 	, [LParen] <$ char '('
 	, [RParen] <$ char ')'
+	, [DoubleDot] <$ mapM char ".."
 	, [Dot] <$ char '.'
 	, [Comma] <$ char ','
 	, [Plus]  <$ char '+'
@@ -61,4 +62,6 @@ tokenTr = msum
 			, ("if", [KwIf])
 			, ("then", [KwThen])
 			, ("else", [KwElse])
+			, ("case", [KwCase])
+			, ("of", [KwOf])
 			]

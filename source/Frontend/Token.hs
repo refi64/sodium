@@ -15,11 +15,14 @@ data Token
 	| KwIf
 	| KwThen
 	| KwElse
+	| KwCase
+	| KwOf
 	| LParen
 	| RParen
 	| Semicolon
 	| Comma
 	| Dot
+	| DoubleDot
 	| Plus
 	| Minus
 	| Assign

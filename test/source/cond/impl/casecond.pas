@@ -5,11 +5,11 @@ begin
 	case a of
 		0, 1:
 			WriteLn('Nice choice!');
-		-1:
+		0-100..0-1:
 			WriteLn('You went negative');
-		2:
+		2..200:
 			WriteLn('WOW SUCH BIG NUMBER');
 		else
-			WriteLn('Please, stay in [-1..2] range');
+			WriteLn('Please, stay in [-100..200] range');
 	end;
 end.

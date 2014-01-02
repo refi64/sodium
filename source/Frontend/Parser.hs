@@ -82,7 +82,7 @@ funcTr
 	 =  Func
 	<$  expect T.KwFunction
 	<*> nameTr
-	<*> paramsTr
+	<*> (paramsTr <|> return (Vars []))
 	<*  expect T.Colon
 	<*> typeTr
 	<*  expect T.Semicolon
@@ -107,6 +107,7 @@ statementTr
 	, executeTr
 	, forCycleTr
 	, ifBranchTr
+	, caseBranchTr
 	]
 
 assignTr
@@ -145,6 +146,25 @@ ifBranchTr
 			 = expect T.KwElse
 			*> bodyStatementTr
 
+caseBranchTr
+	 =  CaseBranch
+	<$  expect T.KwCase
+	<*> conditionTr
+	<*  expect T.KwOf
+	<*> many (caseClause
+	<*  expect T.Semicolon)
+	<*> optional (elseClause
+	<*  expect T.Semicolon)
+	<*  expect T.KwEnd
+	where
+		caseClause
+			 =  (,)
+			<$> caseOneTr
+			<*> bodyStatementTr
+		elseClause
+			 =  expect T.KwElse
+			 *> bodyStatementTr
+
 sodiumTr
 	=  expect T.SodiumSpecial
 	*> (fst <$> Tr.before nameTr (expect T.RBrace))
@@ -164,6 +184,29 @@ conditionTr = do
 				_ -> mzero
 			expr2 <- expressionTr
 			return $ flip (Binary op) expr2
+
+rangeTr = do
+	expr1 <- expressionTr
+	mOp <- optional opTr
+	return $ case mOp of
+		Nothing -> expr1
+		Just op -> op expr1
+	where
+		opTr = do
+			op <- Tr.head >>= \case
+				T.DoubleDot -> return OpRange
+				_ -> mzero
+			expr2 <- expressionTr
+			return $ flip (Binary op) expr2
+
+caseOneTr
+	= mplus end next
+	where
+		end = expect T.Colon *> return []
+		next
+			 =  (:)
+			<$> rangeTr
+			<*> mplus (expect T.Comma *> next) end
 
 expressionTr = sepl termTr $
 	Tr.head >>= \case
