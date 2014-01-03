@@ -38,6 +38,23 @@ renderDef (ValueDef pat expr)
 	, renderExpression expr
 	]
 
+renderDef (GuardDef pat leafs)
+	= renderPattern pat
+	P.$+$
+		( P.nest 4
+		$ vsep
+		$ map renderLeaf
+		$ leafs
+		)
+	where
+		renderLeaf (expr1, expr2)
+			= P.hsep
+			[ P.text "|"
+			, renderExpression expr1
+			, P.text "="
+			, renderExpression expr2
+			]
+
 renderExpression (Access name)
 	= renderName name
 

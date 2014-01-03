@@ -94,6 +94,20 @@ chlorinateStatement nameHook = \case
 				Nothing ->
 					return $ D.Body M.empty []
 			return $ D.IfBranch clExpr clBodyThen clBodyElse
+	S.CaseBranch expr leafs mBodyElse
+		-> D.CaseStatement <$> do
+			clExpr <- chlorinateExpr nameHook expr
+			let chlorinateLeaf (exprs, body) = do
+				clExprs <- mapM (chlorinateExpr nameHook) exprs
+				clBody <- chlorinateVB nameHook (S.Vars []) body
+				return (clExprs, clBody)
+			clLeafs <- mapM chlorinateLeaf leafs
+			clBodyElse <- case mBodyElse of
+				Just bodyElse ->
+					chlorinateVB nameHook (S.Vars []) bodyElse
+				Nothing ->
+					return $ D.Body M.empty []
+			return $ D.CaseBranch clExpr clLeafs clBodyElse
 
 
 chlorinateArgument nameHook = \case
@@ -137,3 +151,4 @@ chlorinateOp = \case
 	S.OpEquals -> return D.OpEquals
 	S.OpAnd -> return D.OpAnd
 	S.OpOr -> return D.OpOr
+	S.OpRange -> return D.OpRange

@@ -3,6 +3,7 @@ module Frontend.Parser (parse) where
 
 import Control.Applicative
 import Control.Monad
+import Data.Maybe
 import qualified Tr
 import qualified Frontend.Token as T
 import Frontend.Program
@@ -169,35 +170,29 @@ sodiumTr
 	=  expect T.SodiumSpecial
 	*> (fst <$> Tr.before nameTr (expect T.RBrace))
 
-conditionTr = do
-	expr1 <- expressionTr
-	mOp <- optional opTr
-	return $ case mOp of
-		Nothing -> expr1
-		Just op -> op expr1
+sepnTr elem1Tr elem2Tr opTr = do
+	elem1 <- elem1Tr
+	mOpf <- optional opfTr
+	return $ fromMaybe id mOpf elem1
 	where
-		opTr = do
-			op <- Tr.head >>= \case
-				T.Suck -> return OpLess
-				T.Blow -> return OpMore
-				T.EqSign -> return OpEquals
-				_ -> mzero
-			expr2 <- expressionTr
-			return $ flip (Binary op) expr2
+		opfTr = do
+			op <- opTr
+			elem2 <- elem2Tr
+			return $ flip (Binary op) elem2
 
-rangeTr = do
-	expr1 <- expressionTr
-	mOp <- optional opTr
-	return $ case mOp of
-		Nothing -> expr1
-		Just op -> op expr1
-	where
-		opTr = do
-			op <- Tr.head >>= \case
-				T.DoubleDot -> return OpRange
-				_ -> mzero
-			expr2 <- expressionTr
-			return $ flip (Binary op) expr2
+conditionTr
+	= sepnTr expressionTr expressionTr
+	$ Tr.head >>= \case
+		T.Suck -> return OpLess
+		T.Blow -> return OpMore
+		T.EqSign -> return OpEquals
+		_ -> mzero
+
+rangeTr
+	= sepnTr expressionTr expressionTr
+	$ Tr.head >>= \case
+		T.DoubleDot -> return OpRange
+		_ -> mzero
 
 caseOneTr
 	= mplus end next

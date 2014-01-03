@@ -209,6 +209,34 @@ dechlorinatePureStatement = \case
 		return $ D.ValueDef
 			hsRetPat
 			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
+	S.VecCaseStatement retIndices (S.VecCaseBranch expr leafs bodyElse) -> do
+		let dechlorinateLeaf (exprs, body) = do
+			let genGuard = \case
+				S.VecCall (S.CallOperator S.OpRange) [exprFrom, exprTo] -> do
+					hsRange <- dechlorinateRange exprFrom exprTo
+					return $ D.Binary "`elem`" (D.Access "__CASE__") hsRange
+				expr -> do
+					hsExpr <- dechlorinateExpression expr
+					return $ D.Binary "==" (D.Access "__CASE__") hsExpr
+			hsExprs <- mapM genGuard exprs
+			let hsUltimateExpr = foldl1 (D.Binary "||") hsExprs
+			hsBody <- dechlorinatePureBody body
+			return (hsUltimateExpr, hsBody)
+		hsGuardLeafs <- mapM dechlorinateLeaf leafs
+		hsBodyElse <- dechlorinatePureBody bodyElse
+		let hsGuardLeafs' = hsGuardLeafs ++ [(D.Access "otherwise", hsBodyElse)]
+		hsExpr <- dechlorinateExpression expr
+		let hsTEMPDEF1 = D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr
+		let hsTEMPDEF2 = D.GuardDef (D.PatTuple ["__RES__"]) hsGuardLeafs
+		let hsGuardExpression
+			= D.PureLet [hsTEMPDEF1, hsTEMPDEF2]
+			$ D.Access "__RES__"
+		hsRetPat
+			<-  D.PatTuple
+			<$> dechlorinateIndicesList retIndices
+		return $ D.ValueDef
+			hsRetPat
+			hsGuardExpression
 	st -> error (show st)
 
 beta = foldl1 D.Beta

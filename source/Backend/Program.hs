@@ -25,6 +25,7 @@ type Def = ValueDef
 
 data ValueDef
 	= ValueDef Pattern Expression
+	| GuardDef Pattern [(Expression, Expression)]
 	deriving (Show)
 
 data Expression

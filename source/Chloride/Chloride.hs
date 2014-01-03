@@ -52,6 +52,7 @@ data Statement
 	| Execute ExecuteName [Argument]
 	| ForStatement ForCycle
 	| IfStatement IfBranch
+	| CaseStatement CaseBranch
 	deriving (Show)
 
 data ForCycle
@@ -67,6 +68,13 @@ data IfBranch
 	{ _ifExpr :: Expression
 	, _ifThen :: Body
 	, _ifElse :: Body
+	} deriving (Show)
+
+data CaseBranch
+	= CaseBranch
+	{ _caseExpr :: Expression
+	, _caseLeafs :: [([Expression], Body)]
+	, _caseElse :: Body
 	} deriving (Show)
 
 data Expression
@@ -92,6 +100,7 @@ data VecStatement
 	| VecExecute IndicesList ExecuteName [VecArgument]
 	| VecForStatement IndicesList VecForCycle
 	| VecIfStatement IndicesList VecIfBranch
+	| VecCaseStatement IndicesList VecCaseBranch
 	deriving (Show)
 
 data VecForCycle
@@ -108,6 +117,13 @@ data VecIfBranch
 	{ _vecIfExpr :: VecExpression
 	, _vecIfThen :: VecBody
 	, _vecIfElse :: VecBody
+	} deriving (Show)
+
+data VecCaseBranch
+	= VecCaseBranch
+	{ _vecCaseExpr :: VecExpression
+	, _vecCaseLeafs :: [([VecExpression], VecBody)]
+	, _vecCaseElse :: VecBody
 	} deriving (Show)
 
 data VecExpression
@@ -134,6 +150,8 @@ data Operator
 	| OpEquals
 	| OpAnd
 	| OpOr
+	| OpRange
+	| OpElem
 	| OpShow
 	deriving (Show)
 
