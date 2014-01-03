@@ -36,7 +36,7 @@ for FILE in $DIR/impl/*.pas ; do
 			echo -e "\t!! test " $FILEINNAME &&
 			$TMPDIR/fpc_bin/$FILENAME < $FILEIN > $TMPDIR/source_out &&
 			$TMPDIR/ghc_bin/$FILENAME < $FILEIN > $TMPDIR/dest_out &&
-			diff -y --left-column $TMPDIR/source_out $TMPDIR/dest_out
+			diff -y --suppress-common-lines $TMPDIR/source_out $TMPDIR/dest_out
 		done
 	fi
 	rm -r $TMPDIR
