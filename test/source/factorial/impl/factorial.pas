@@ -1,5 +1,5 @@
 var
-	a, n, i: Integer;
+	a, n, i: LongInt;
 begin
 	ReadLn(n);
 	a := 1;

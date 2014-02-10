@@ -1,6 +1,6 @@
-function factorial(n: Integer): Integer;
+function factorial(n: LongInt): LongInt;
 var
-	i: Integer;
+	i: LongInt;
 begin
 	factorial := 1;
 	for i := 1 to n do
@@ -8,7 +8,7 @@ begin
 end;
 
 var
-	n: Integer;
+	n: LongInt;
 begin
 	ReadLn(n);
 	n := factorial(n);

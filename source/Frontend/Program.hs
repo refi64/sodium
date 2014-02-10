@@ -65,6 +65,7 @@ data Operator
 
 data PasType
 	= PasInteger
+	| PasLongInt
 	| PasReal
 	| PasBoolean
 	| PasString

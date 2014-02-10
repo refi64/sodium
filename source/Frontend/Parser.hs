@@ -62,6 +62,7 @@ varNamesTr
 
 typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
+	"longint" -> return PasLongInt
 	"real" -> return PasReal
 	"boolean" -> return PasBoolean
 	"string"  -> return PasString

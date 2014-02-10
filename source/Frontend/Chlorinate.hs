@@ -63,6 +63,7 @@ chlorinateVarDecl (name, pasType)
 
 chlorinateType = \case
 	S.PasInteger -> return D.ClInteger
+	S.PasLongInt -> return D.ClInteger
 	S.PasReal    -> return D.ClDouble
 	S.PasBoolean -> return D.ClBoolean
 	S.PasString  -> return D.ClString
