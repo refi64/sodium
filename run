@@ -2,7 +2,8 @@
 
 ROOTDIR=$(dirname $0)
 
-ghc $ROOTDIR/source/Main.hs -O2 -threaded -with-rtsopts="-N" -outputdir $ROOTDIR/build -i$ROOTDIR/source -o $ROOTDIR/exe &&
+ghc $ROOTDIR/source/Main.hs -O2 -threaded -with-rtsopts="-N" \
+	-outputdir $ROOTDIR/build -i$ROOTDIR/source -o $ROOTDIR/exe &&
 for DIR in $ROOTDIR/test/source/* ; do
 for FILE in $DIR/impl/*.pas ; do
 	FILENAME=$(basename $FILE .pas)
@@ -15,7 +16,9 @@ for FILE in $DIR/impl/*.pas ; do
 	mkdir $TMPDIR/ghc_obj
 	mkdir $TMPDIR/fpc_bin
 	mkdir $TMPDIR/ghc_bin
-	FILE_DEST=$ROOTDIR/test/dest/$FILENAME.hs
+	DIR_DEST=$ROOTDIR/test/dest/$(basename $DIR)
+	mkdir -p $DIR_DEST
+	FILE_DEST=$DIR_DEST/$FILENAME.hs
 	$ROOTDIR/exe $FILE $FILE_DEST &> $TMPDIR/compile_out &&
 	fpc -FE$TMPDIR/fpc_bin -FU$TMPDIR/fpc_obj $FILE &> $TMPDIR/compile_out &&
 	ghc $FILE_DEST -outputdir $TMPDIR/ghc_obj -o $TMPDIR/ghc_bin/$FILENAME &> $TMPDIR/compile_out
