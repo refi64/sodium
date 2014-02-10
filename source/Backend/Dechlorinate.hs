@@ -83,8 +83,9 @@ dechlorinateStatement = \case
 				(uncurry dechlorinateName)
 				retIndices
 		let hsExpr
-			= D.Binary "<$>" (D.Access "read") (D.Access "getLine")
-			`D.Typed` D.HsIO (dechlorinateType t)
+			| t == S.ClString = D.Access "getLine"
+			| otherwise = D.Binary "<$>" (D.Access "read") (D.Access "getLine")
+				`D.Typed` D.HsIO (dechlorinateType t)
 		return $ D.DoBind hsRetPat hsExpr
 	S.VecExecute retIndices S.ExecuteWrite args -> do
 		-- WriteLn can't change its arguments
