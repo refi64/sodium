@@ -211,33 +211,40 @@ dechlorinatePureStatement = \case
 			hsRetPat
 			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
 	S.VecCaseStatement retIndices (S.VecCaseBranch expr leafs bodyElse) -> do
+		(caseExpr, wrap) <- case expr of
+			S.VecAccess name i -> do
+				hsName <- dechlorinateName name i
+				return (D.Access hsName, id)
+			expr -> do
+				hsExpr <- dechlorinateExpression expr
+				return
+					( D.Access "__CASE__"
+					, D.PureLet [D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr]
+					)
 		let dechlorinateLeaf (exprs, body) = do
 			let genGuard = \case
 				S.VecCall (S.CallOperator S.OpRange) [exprFrom, exprTo] -> do
 					hsRange <- dechlorinateRange exprFrom exprTo
-					return $ D.Binary "`elem`" (D.Access "__CASE__") hsRange
+					return $ D.Binary "`elem`" caseExpr hsRange
 				expr -> do
 					hsExpr <- dechlorinateExpression expr
-					return $ D.Binary "==" (D.Access "__CASE__") hsExpr
+					return $ D.Binary "==" caseExpr hsExpr
 			hsExprs <- mapM genGuard exprs
-			let hsUltimateExpr = foldl1 (D.Binary "||") hsExprs
 			hsBody <- dechlorinatePureBody body
-			return (hsUltimateExpr, hsBody)
-		hsGuardLeafs <- mapM dechlorinateLeaf leafs
+			return (foldl1 (D.Binary "||") hsExprs, hsBody)
 		hsBodyElse <- dechlorinatePureBody bodyElse
-		let hsGuardLeafs' = hsGuardLeafs ++ [(D.Access "otherwise", hsBodyElse)]
-		hsExpr <- dechlorinateExpression expr
-		let hsTEMPDEF1 = D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr
-		let hsTEMPDEF2 = D.GuardDef (D.PatTuple ["__RES__"]) hsGuardLeafs
-		let hsGuardExpression
-			= D.PureLet [hsTEMPDEF1, hsTEMPDEF2]
-			$ D.Access "__RES__"
+		hsGuardLeafs
+			<- (++ [(D.Access "otherwise", hsBodyElse)])
+			<$> mapM dechlorinateLeaf leafs
+		let hsGuardExpression name
+			= D.PureLet [D.GuardDef (D.PatTuple [name]) hsGuardLeafs]
+			$ D.Access name
 		hsRetPat
 			<-  D.PatTuple
 			<$> dechlorinateIndicesList retIndices
 		return $ D.ValueDef
 			hsRetPat
-			hsGuardExpression
+			(wrap $ hsGuardExpression "__RES__")
 	st -> error (show st)
 
 beta = foldl1 D.Beta
