@@ -4,6 +4,7 @@ ROOTDIR=$(dirname $0)
 
 ghc $ROOTDIR/source/Main.hs -O2 -threaded -with-rtsopts="-N" \
 	-outputdir $ROOTDIR/build -i$ROOTDIR/source -o $ROOTDIR/exe &&
+[[ $1 == "--test" || $1 == '-t' ]] &&
 for DIR in $ROOTDIR/test/source/* ; do
 for FILE in $DIR/impl/*.pas ; do
 	FILENAME=$(basename $FILE .pas)
