@@ -37,10 +37,7 @@ vectorizeBody closure body = do
 	let changed
 		= M.keys
 		$ M.filter id
-		$ M.intersectionWith
-		(\i j -> if i /= j
-			then True
-			else False)
+		$ M.intersectionWith (/=)
 		indices indices'
 	let vecBodyGen results = do
 		vecResults
