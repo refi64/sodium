@@ -19,9 +19,12 @@ tokenTr = msum
 		<$ char '{'
 		<* optional whitespace
 		<* mapM char "#SODIUM"
+	, [] <$ comment
 	, [RBrace] <$ char '}'
 	, [LParen] <$ char '('
 	, [RParen] <$ char ')'
+	, [LSqBrace] <$ char '['
+	, [RSqBrace] <$ char ']'
 	, [DoubleDot] <$ mapM char ".."
 	, [Dot] <$ char '.'
 	, [Comma] <$ char ','
@@ -37,15 +40,20 @@ tokenTr = msum
 	, [Blow] <$ char '>'
 	, (\cs -> [Number cs]) <$> some (mfilter C.isDigit Tr.head)
 	, let letter = C.toLower <$> mfilter C.isAlphaNum Tr.head
-	  in mangle <$> some (letter `mplus` char '_')
-	, (\(cs, _) -> [Quote cs])
-		<$  char '\''
-		-- TODO: Pascal-style escaping
-		<*> let escaped = char '\\' *> Tr.head
-		    in mplus escaped Tr.head `Tr.before` char '\''
+	  in mangle <$> some (letter <|> char '_')
+	, (\cs -> [Quote cs]) <$> quote
 	] where
 		char c = mfilter (==c) Tr.head
 		whitespace = some (mfilter C.isSpace Tr.head)
+		comment = char '{' <* let
+			comment' = void (char '}') <|> void (unit *> comment')
+			unit = void comment <|> void Tr.head
+			in comment'
+		quote = let
+			qmark = '\''
+			quote' = ((:) <$> unit <*> quote') <|> ("" <$ char qmark)
+			unit = (char qmark *> char qmark) <|> (mfilter (/=qmark) Tr.head)
+			in char qmark *> quote'
 		mangle cs = maybe [Name cs] id (lookup cs keywords)
 		keywords =
 			[ ("var", [KwVar])

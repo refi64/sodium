@@ -37,4 +37,6 @@ data Token
 	| Quote String
 	| SodiumSpecial
 	| RBrace
+	| LSqBrace
+	| RSqBrace
 	deriving (Eq, Show)
