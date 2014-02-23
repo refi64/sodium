@@ -2,7 +2,7 @@ var
 	name: String;
 	age: Integer;
 begin
-	WriteLn('What is your name?');
+	WriteLn('What is your ''name?''');
 	ReadLn(name);
 	WriteLn('How old are you?');
 	ReadLn(age);
