@@ -7,9 +7,9 @@ ghc $ROOTDIR/source/Main.hs -O2 -threaded -with-rtsopts="-N" \
 [[ $1 == "--test" || $1 == '-t' ]] &&
 for DIR in $ROOTDIR/test/source/* ; do
 for FILE in $DIR/impl/*.pas ; do
+	DIRNAME=$(basename $DIR)
 	FILENAME=$(basename $FILE .pas)
-	echo -e '\n'
-	echo "---- PROCESSING $FILENAME -------"
+	echo -e "\n# $DIRNAME/$FILENAME"
 
 	TMPDIR=$(mktemp -d)
 
@@ -17,8 +17,8 @@ for FILE in $DIR/impl/*.pas ; do
 	mkdir $TMPDIR/ghc_obj
 	mkdir $TMPDIR/fpc_bin
 	mkdir $TMPDIR/ghc_bin
-	DIR_DEST=$ROOTDIR/test/dest/$(basename $DIR)
-	mkdir -p $DIR_DEST
+	DIR_DEST=$ROOTDIR/test/dest/$DIRNAME
+	mkdir -p $DIR_DEST && rm -r $DIR_DEST/*
 	FILE_DEST=$DIR_DEST/$FILENAME.hs
 	$ROOTDIR/exe $FILE $FILE_DEST &> $TMPDIR/compile_out &&
 	fpc -FE$TMPDIR/fpc_bin -FU$TMPDIR/fpc_obj $FILE &> $TMPDIR/compile_out &&
