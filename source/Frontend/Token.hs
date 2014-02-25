@@ -33,7 +33,9 @@ data Token
 	| Suck
 	| Blow
 	| Name String
-	| Number String
+	| INumber String
+	| FNumber String String
+	| ENumber String String Bool String
 	| Quote String
 	| SodiumSpecial
 	| RBrace
