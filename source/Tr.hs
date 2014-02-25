@@ -5,7 +5,10 @@ module Tr
 	, head
 	, until
 	, before
+	, fallback
 	, trap
+	, trapGuard
+	, expect
 	) where
 
 import Prelude hiding (head, until)
@@ -33,9 +36,18 @@ before u v = element `mplus` stop where
 	element = (\b -> ([], b)) <$> v
 	stop = (\a (as, b) -> (a:as, b)) <$> u <*> (u `before` v)
 
+fallback :: Alternative f => a -> f a -> f a
+fallback = flip (<|>) . pure
+
 trap :: Monad m => Tr x m (a -> b) -> (x -> m a) -> (x -> m b)
 trap tr next =
 	\x -> do
 		(a, y) <- runTr tr x
 		b <- next y
 		return $ a b
+
+trapGuard :: (Functor m, MonadPlus m) => Tr x m b -> (x -> Bool) -> (x -> m b)
+trapGuard tr p = Tr.trap (const <$> tr) (guard . p)
+
+expect :: (Eq x, MonadPlus m) => x -> Tr [x] m x
+expect x = mfilter (==x) head
