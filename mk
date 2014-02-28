@@ -18,7 +18,7 @@ for FILE in $DIR/impl/*.pas ; do
 	mkdir $TMPDIR/fpc_bin
 	mkdir $TMPDIR/ghc_bin
 	DIR_DEST=$ROOTDIR/test/dest/$DIRNAME
-	mkdir -p $DIR_DEST && rm -r $DIR_DEST/*
+	mkdir -p $DIR_DEST
 	FILE_DEST=$DIR_DEST/$FILENAME.hs
 	$ROOTDIR/exe $FILE $FILE_DEST &> $TMPDIR/compile_out &&
 	fpc -FE$TMPDIR/fpc_bin -FU$TMPDIR/fpc_obj $FILE &> $TMPDIR/compile_out &&
