@@ -16,7 +16,10 @@ import Success
 dechlorinate :: S.VecProgram -> (Fail String) D.Program
 dechlorinate (S.VecProgram funcs) = do
 	funcDefs <- mapM dechlorinateFunc funcs
-	return $ D.Program funcDefs ["Control.Monad", "Control.Applicative"]
+	return $ D.Program funcDefs
+		[ "Control.Monad"
+		, "Control.Applicative"
+		]
 
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState
@@ -261,7 +264,11 @@ dechlorinateExpression :: S.VecExpression -> (Fail String) D.Expression
 dechlorinateExpression = \case
 	S.VecPrimary prim -> return $ case prim of
 		S.Quote  cs -> D.Quote cs
-		S.Number cs -> D.Number cs
+		S.INumber intSection -> D.INumber intSection
+		S.FNumber intSection fracSection
+			-> D.FNumber intSection fracSection
+		S.ENumber intSection fracSection eSign eSection
+			-> D.ENumber intSection fracSection eSign eSection
 		S.BTrue  -> D.BTrue
 		S.BFalse -> D.BFalse
 		S.Void   -> D.Tuple []
@@ -277,6 +284,10 @@ dechlorinateExpression = \case
 				-> return
 				 $ beta (D.Access (transformName name) : hsExprs)
 			S.CallOperator op -> case op of
+				S.OpNegate -> do
+					case hsExprs of
+						[hsExpr1] -> return (D.Negate hsExpr1)
+						e -> error (show e)
 				S.OpShow -> do
 					case hsExprs of
 						[hsExpr1] -> return (D.Access "show" `D.Beta` hsExpr1)

@@ -123,10 +123,18 @@ chlorinateExpr nameHook = \case
 		 -> D.Call
 		<$> (D.CallName <$> chlorinateName name)
 		<*> mapM (chlorinateExpr nameHook) exprs
-	S.Number cs
+	S.INumber intSection
 		-> return
 		 $ D.Primary
-		 $ D.Number cs
+		 $ D.INumber intSection
+	S.FNumber intSection fracSection
+		-> return
+		 $ D.Primary
+		 $ D.FNumber intSection fracSection
+	S.ENumber intSection fracSection eSign eSection
+		-> return
+		 $ D.Primary
+		 $ D.ENumber intSection fracSection eSign eSection
 	S.Quote cs
 		-> return
 		 $ D.Primary
@@ -141,6 +149,11 @@ chlorinateExpr nameHook = \case
 		 -> D.Call
 		<$> (D.CallOperator <$> chlorinateOp op)
 		<*> mapM (chlorinateExpr nameHook) [x, y]
+	S.Unary op x -> case op of
+		S.UOpPlus -> chlorinateExpr nameHook x
+		S.UOpNegate
+			 -> D.Call (D.CallOperator D.OpNegate)
+			<$> mapM (chlorinateExpr nameHook) [x]
 
 chlorinateOp = \case
 	S.OpAdd -> return D.OpAdd

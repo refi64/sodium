@@ -133,8 +133,10 @@ data VecExpression
 	deriving (Show)
 
 data Literal
-	= Number String
-	| Quote  String
+	= INumber String
+	| FNumber String String
+	| ENumber String String Bool String
+	| Quote String
 	| BTrue
 	| BFalse
 	| Void
@@ -153,6 +155,7 @@ data Operator
 	| OpRange
 	| OpElem
 	| OpShow
+	| OpNegate
 	deriving (Show)
 
 data CallName

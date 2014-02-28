@@ -3,7 +3,7 @@ begin
 	case x of
 		0, 1:
 			g := 'Nice choice!';
-		0-100..0-1:
+		-100..-1:
 			g := 'You went negative';
 		2..200:
 			g := 'WOW SUCH BIG NUMBER';

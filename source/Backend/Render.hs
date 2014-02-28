@@ -134,8 +134,34 @@ renderExpression (IfExpression expr bodyThen bodyElse)
 renderExpression (Quote cs)
 	= P.text (show cs)
 
-renderExpression (Number cs)
-	= P.text cs
+renderExpression (INumber intSection)
+	= P.text intSection
+
+renderExpression (FNumber intSection fracSection)
+	= P.hcat
+	[ P.text intSection
+	, P.text "."
+	, P.text fracSection
+	]
+
+renderExpression (ENumber intSection fracSection eSign eSection)
+	= P.hcat
+	[ P.text intSection
+	, P.text "."
+	, P.text fracSection
+	, P.text "e"
+	, if eSign
+		then P.text "+"
+		else P.text "-"
+	, P.text eSection
+	]
+
+renderExpression (Negate expr)
+	= P.hcat
+	[ P.text "(-"
+	, renderExpression expr
+	, P.text ")"
+	]
 
 renderExpression BTrue
 	= P.text "True"

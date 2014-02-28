@@ -7,6 +7,7 @@ module Frontend.Program
 	, Statement(..)
 	, Expression(..)
 	, Operator(..)
+	, UnaryOperator(..)
 	, Name
 	, PasType(..)
 	) where
@@ -44,10 +45,13 @@ data Statement
 data Expression
 	= Access Name
 	| Call Name [Expression]
-	| Number String
+	| INumber String
+	| FNumber String String
+	| ENumber String String Bool String
 	| Quote String
 	| BTrue | BFalse
 	| Binary Operator Expression Expression
+	| Unary UnaryOperator Expression
 	deriving (Show)
 
 data Operator
@@ -63,11 +67,17 @@ data Operator
 	| OpRange
 	deriving (Show)
 
+data UnaryOperator
+	= UOpNegate
+	| UOpPlus
+	deriving (Show)
+
 data PasType
 	= PasInteger
 	| PasLongInt
 	| PasReal
 	| PasBoolean
 	| PasString
+	| PasArray PasType
 	| PasType Name
 	deriving (Show)

@@ -32,10 +32,14 @@ data Expression
 	= Access Name
 	| Lambda [Pattern] Expression
 	| Beta Expression Expression
+	-- TODO: Sections instead of Binary
 	| Binary Name Expression Expression
+	| Negate Expression
 	| Tuple [Expression]
 	| Quote String
-	| Number String
+	| INumber String
+	| FNumber String String
+	| ENumber String String Bool String
 	| BTrue | BFalse
 	| Typed Expression HsType
 	| DoExpression [DoStatement]

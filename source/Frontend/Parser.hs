@@ -10,18 +10,12 @@ import Frontend.Program
 import Success
 
 parse :: [T.Token] -> (Fail String) Program
-parse
-	= Tr.trap
-		(const <$> programTr)
-		(guard . isDot)
-	where
-		isDot (T.Dot:_) = True
-		isDot _ = False
+parse = Tr.trapGuard programTr isDot where
+	isDot (T.Dot:_) = True
+	isDot _ = False
 
 
 -- Useful combinators
-
-expect a = mfilter (==a) Tr.head
 
 sepr elemTr opTr = tr where
 	tr = elemTr >>= next
@@ -42,23 +36,21 @@ programTr
 varsTr
 	 =  flip mplus (return $ Vars [])
 	 $  Vars
-	<$  expect T.KwVar
+	<$  Tr.expect T.KwVar
 	<*> many (varDeclTr
-	<*  expect T.Semicolon)
+	<*  Tr.expect T.Semicolon)
 
 varDeclTr
 	 =  VarDecl
 	<$> varNamesTr
 	<*> typeTr
 
-varNamesTr
-	= mplus end next
-	where
-		end = expect T.Colon *> return []
-		next
-			 =  (:)
-			<$> nameTr
-			<*> mplus (expect T.Comma *> next) end
+varNamesTr = mplus end next where
+	end = Tr.expect T.Colon *> return []
+	next
+		 =  (:)
+		<$> nameTr
+		<*> mplus (Tr.expect T.Comma *> next) end
 
 typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
@@ -66,42 +58,43 @@ typeTr = nameTr >>= \case
 	"real" -> return PasReal
 	"boolean" -> return PasBoolean
 	"string"  -> return PasString
+	"array" -> do
+		Tr.expect T.KwOf
+		PasArray <$> typeTr
 	cs -> return $ PasType cs
 
-bodyStatementTr
-	= mplus bodyTr (wrap <$> statementTr)
-	where
-		wrap statement = Body [statement]
+bodyStatementTr = mplus bodyTr (wrap <$> statementTr) where
+	wrap statement = Body [statement]
 
 bodyTr
 	 =  Body . fst
-	<$  expect T.KwBegin
+	<$  Tr.expect T.KwBegin
 	<*> Tr.before
-		(statementTr <* expect T.Semicolon)
-		(expect T.KwEnd)
+		(statementTr <* Tr.expect T.Semicolon)
+		(Tr.expect T.KwEnd)
 
 funcTr
 	 =  Func
-	<$  expect T.KwFunction
+	<$  Tr.expect T.KwFunction
 	<*> nameTr
 	<*> (paramsTr <|> return (Vars []))
-	<*  expect T.Colon
+	<*  Tr.expect T.Colon
 	<*> typeTr
-	<*  expect T.Semicolon
+	<*  Tr.expect T.Semicolon
 	<*> varsTr
 	<*> bodyTr
-	<*  expect T.Semicolon
+	<*  Tr.expect T.Semicolon
 
 paramsTr
 	 =  Vars
-	<$  expect T.LParen
+	<$  Tr.expect T.LParen
 	<*> mplus end next
 	where
-		end = expect T.RParen *> return []
+		end = Tr.expect T.RParen *> return []
 		next
 			 =  (:)
 			<$> varDeclTr
-			<*> mplus (expect T.Semicolon *> next) end
+			<*> mplus (Tr.expect T.Semicolon *> next) end
 
 statementTr
 	= msum
@@ -115,7 +108,7 @@ statementTr
 assignTr
 	 =  Assign
 	<$> nameTr
-	<*  expect T.Assign
+	<*  Tr.expect T.Assign
 	<*> conditionTr
 
 executeTr
@@ -125,51 +118,51 @@ executeTr
 
 forCycleTr
 	 = ForCycle
-	<$  expect T.KwFor
+	<$  Tr.expect T.KwFor
 	<*> nameTr
-	<*  expect T.Assign
+	<*  Tr.expect T.Assign
 	<*> conditionTr
-	<*  expect T.KwTo
+	<*  Tr.expect T.KwTo
 	<*> conditionTr
-	<*  expect T.KwDo
+	<*  Tr.expect T.KwDo
 	<*> bodyStatementTr
 
 ifBranchTr
 	 =  IfBranch
-	<$  expect T.KwIf
+	<$  Tr.expect T.KwIf
 	<*> conditionTr
 	<*> thenClause
 	<*> optional elseClause
 	where
 		thenClause
-			 = expect T.KwThen
+			 = Tr.expect T.KwThen
 			*> bodyStatementTr
 		elseClause
-			 = expect T.KwElse
+			 = Tr.expect T.KwElse
 			*> bodyStatementTr
 
 caseBranchTr
 	 =  CaseBranch
-	<$  expect T.KwCase
+	<$  Tr.expect T.KwCase
 	<*> conditionTr
-	<*  expect T.KwOf
+	<*  Tr.expect T.KwOf
 	<*> many (caseClause
-	<*  expect T.Semicolon)
+	<*  Tr.expect T.Semicolon)
 	<*> optional (elseClause
-	<*  expect T.Semicolon)
-	<*  expect T.KwEnd
+	<*  Tr.expect T.Semicolon)
+	<*  Tr.expect T.KwEnd
 	where
 		caseClause
 			 =  (,)
 			<$> caseOneTr
 			<*> bodyStatementTr
 		elseClause
-			 =  expect T.KwElse
+			 =  Tr.expect T.KwElse
 			 *> bodyStatementTr
 
 sodiumTr
-	=  expect T.SodiumSpecial
-	*> (fst <$> Tr.before nameTr (expect T.RBrace))
+	=  Tr.expect T.SodiumSpecial
+	*> (fst <$> Tr.before nameTr (Tr.expect T.RBrace))
 
 sepnTr elem1Tr elem2Tr opTr = do
 	elem1 <- elem1Tr
@@ -195,14 +188,12 @@ rangeTr
 		T.DoubleDot -> return OpRange
 		_ -> mzero
 
-caseOneTr
-	= mplus end next
-	where
-		end = expect T.Colon *> return []
-		next
-			 =  (:)
-			<$> rangeTr
-			<*> mplus (expect T.Comma *> next) end
+caseOneTr = mplus end next where
+	end = Tr.expect T.Colon *> return []
+	next
+		 =  (:)
+		<$> rangeTr
+		<*> mplus (Tr.expect T.Comma *> next) end
 
 expressionTr = sepl termTr $
 	Tr.head >>= \case
@@ -218,8 +209,15 @@ termTr = sepl primTr $
 		T.KwAnd -> return (Binary OpAnd)
 		_ -> mzero
 
+unaryTr = opTr <|> return id where
+	opTr = Tr.head >>= \case
+		T.Plus -> return (Unary UOpPlus)
+		T.Minus -> return (Unary UOpNegate)
+		_ -> mzero
+
 primTr
-	= msum
+	 =  unaryTr
+	<*> msum
 	[ Call <$> nameTr <*> argsTr
 	, accessTr
 	, numberTr
@@ -229,26 +227,31 @@ primTr
 	]
 
 enclosedTr
-	=  expect T.LParen
+	=  Tr.expect T.LParen
 	*> conditionTr
-	<* expect T.RParen
+	<* Tr.expect T.RParen
 
 argsTr
-	=  expect T.LParen
+	=  Tr.expect T.LParen
 	*> mplus end next
 	where
-		end = expect T.RParen *> return []
+		end = Tr.expect T.RParen *> return []
 		next
 			 =  (:)
 			<$> conditionTr
-			<*> mplus (expect T.Comma *> next) end
+			<*> mplus (Tr.expect T.Comma *> next) end
 
 accessTr
 	 =  Access
 	<$> nameTr
 
 numberTr = Tr.head >>= \case
-	T.Number cs -> return $ Number cs
+	T.INumber intSection -> return $
+		INumber intSection
+	T.FNumber intSection fracSection -> return $
+		FNumber intSection fracSection
+	T.ENumber intSection fracSection eSign eSection -> return $
+		ENumber intSection fracSection eSign eSection
 	_ -> mzero
 
 quoteTr = Tr.head >>= \case
