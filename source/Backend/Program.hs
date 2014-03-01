@@ -18,7 +18,7 @@ data HsType
 	deriving (Show)
 
 data Program
-	= Program [Def] [String]
+	= Program [Def] [String] [String]
 	deriving (Show)
 
 type Def = ValueDef

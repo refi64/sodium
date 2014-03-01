@@ -20,6 +20,9 @@ dechlorinate (S.VecProgram funcs) = do
 		[ "Control.Monad"
 		, "Control.Applicative"
 		]
+		[ "LambdaCase"
+		, "TupleSections"
+		]
 
 data VarState = VarState D.HsType Integer
 type VarStates = M.Map D.Name VarState

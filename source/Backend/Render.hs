@@ -12,12 +12,23 @@ import Success
 vsep = foldr (P.$+$) P.empty
 
 render :: Program -> (Fail String) String
-render (Program defs imports)
+render (Program defs imports exts)
 	= return
 	$ P.render
 	$ vsep
-	$  map renderImport imports
+	$ [renderExts exts]
+	++ map renderImport imports
 	++ map renderDef defs
+
+renderExts cs
+	= P.hsep
+	[ P.text "{-#"
+	, P.text "LANGUAGE"
+	, P.hsep
+		$ P.punctuate P.comma
+		$ map P.text cs
+	, P.text "#-}"
+	]
 
 renderImport cs
 	= P.text "import"
