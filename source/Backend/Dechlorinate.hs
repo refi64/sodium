@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, TupleSections #-}
 
 module Backend.Dechlorinate
 	( dechlorinate
@@ -175,19 +175,58 @@ dechlorinatePureBody (S.VecBody _ statements resultExprs) = msum
 		name1 <- case resultExprs of
 			[S.VecAccess name i] -> return (name, i)
 			_ -> mzero
-		(name2, statements, expr) <- case reverse statements of
-			(S.VecAssign name i expr : statements') ->
-				return ((name, i), reverse statements', expr)
+		let appToLast f xs = case reverse xs of
+			(x:xs') -> (, reverse xs') <$> f x
 			_ -> mzero
+		((name2, hsExpr), statements)
+			<- flip appToLast statements
+			$ \case
+				S.VecAssign name i expr -> do
+					hsExpr <- dechlorinateExpression expr
+					return ((name, i), hsExpr)
+				S.VecCaseStatement [(name, i)] vecCaseBranch -> do
+					hsExpr <- dechlorinatePureVecCaseBranch vecCaseBranch
+					return ((name, i), hsExpr)
+				_ -> mzero
 		guard $ name1 == name2
 		hsValueDefs <- mapM dechlorinatePureStatement statements
-		hsRetValue <- dechlorinateExpression expr
-		return $ pureLet hsValueDefs hsRetValue
+		return $ pureLet hsValueDefs hsExpr
 	, do
 		hsValueDefs <- mapM dechlorinatePureStatement statements
 		hsRetValues <- mapM dechlorinateExpression resultExprs
 		return $ pureLet hsValueDefs (D.Tuple hsRetValues)
 	]
+
+dechlorinatePureVecCaseBranch (S.VecCaseBranch expr leafs bodyElse) = do
+	(caseExpr, wrap) <- case expr of
+		S.VecAccess name i -> do
+			hsName <- dechlorinateName name i
+			return (D.Access hsName, id)
+		expr -> do
+			hsExpr <- dechlorinateExpression expr
+			return
+				( D.Access "__CASE__"
+				, pureLet [D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr]
+				)
+	let dechlorinateLeaf (exprs, body) = do
+		let genGuard = \case
+			S.VecCall (S.CallOperator S.OpRange) [exprFrom, exprTo] -> do
+				hsRange <- dechlorinateRange exprFrom exprTo
+				return $ D.Binary "`elem`" caseExpr hsRange
+			expr -> do
+				hsExpr <- dechlorinateExpression expr
+				return $ D.Binary "==" caseExpr hsExpr
+		hsExprs <- mapM genGuard exprs
+		hsBody <- dechlorinatePureBody body
+		return (foldl1 (D.Binary "||") hsExprs, hsBody)
+	hsBodyElse <- dechlorinatePureBody bodyElse
+	hsGuardLeafs
+		<- (++ [(D.Access "otherwise", hsBodyElse)])
+		<$> mapM dechlorinateLeaf leafs
+	let hsGuardExpression name
+		= pureLet [D.GuardDef (D.PatTuple [name]) hsGuardLeafs]
+		$ D.Access name
+	return $ wrap (hsGuardExpression "__RES__")
 
 dechlorinatePureStatement
 	:: S.VecStatement
@@ -227,41 +266,11 @@ dechlorinatePureStatement = \case
 		return $ D.ValueDef
 			hsRetPat
 			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
-	S.VecCaseStatement retIndices (S.VecCaseBranch expr leafs bodyElse) -> do
-		(caseExpr, wrap) <- case expr of
-			S.VecAccess name i -> do
-				hsName <- dechlorinateName name i
-				return (D.Access hsName, id)
-			expr -> do
-				hsExpr <- dechlorinateExpression expr
-				return
-					( D.Access "__CASE__"
-					, pureLet [D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr]
-					)
-		let dechlorinateLeaf (exprs, body) = do
-			let genGuard = \case
-				S.VecCall (S.CallOperator S.OpRange) [exprFrom, exprTo] -> do
-					hsRange <- dechlorinateRange exprFrom exprTo
-					return $ D.Binary "`elem`" caseExpr hsRange
-				expr -> do
-					hsExpr <- dechlorinateExpression expr
-					return $ D.Binary "==" caseExpr hsExpr
-			hsExprs <- mapM genGuard exprs
-			hsBody <- dechlorinatePureBody body
-			return (foldl1 (D.Binary "||") hsExprs, hsBody)
-		hsBodyElse <- dechlorinatePureBody bodyElse
-		hsGuardLeafs
-			<- (++ [(D.Access "otherwise", hsBodyElse)])
-			<$> mapM dechlorinateLeaf leafs
-		let hsGuardExpression name
-			= pureLet [D.GuardDef (D.PatTuple [name]) hsGuardLeafs]
-			$ D.Access name
-		hsRetPat
-			<-  D.PatTuple
-			<$> dechlorinateIndicesList retIndices
-		return $ D.ValueDef
-			hsRetPat
-			(wrap $ hsGuardExpression "__RES__")
+	S.VecCaseStatement retIndices vecCaseBranch
+		 -> D.ValueDef
+		<$> (D.PatTuple
+			<$> dechlorinateIndicesList retIndices)
+		<*> dechlorinatePureVecCaseBranch vecCaseBranch
 	st -> error (show st)
 
 beta = foldl1 D.Beta
