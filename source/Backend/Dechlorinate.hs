@@ -5,7 +5,7 @@ module Backend.Dechlorinate
 	) where
 
 import Data.List (genericReplicate)
-import Control.Monad (forM, foldM, guard)
+import Control.Monad
 import Control.Applicative
 import qualified Data.Map as M
 -- S for Src, D for Dest
@@ -170,10 +170,24 @@ dechlorinateFoldLambda indices name = do
 dechlorinatePureBody
 	:: S.VecBody
 	-> (Fail String) D.Expression
-dechlorinatePureBody (S.VecBody _ statements resultExprs) = do
-	hsValueDefs <- mapM dechlorinatePureStatement statements
-	hsRetValues <- mapM dechlorinateExpression resultExprs
-	return $ D.PureLet hsValueDefs (D.Tuple hsRetValues)
+dechlorinatePureBody (S.VecBody _ statements resultExprs) = msum
+	[ do
+		name1 <- case resultExprs of
+			[S.VecAccess name i] -> return (name, i)
+			_ -> mzero
+		(name2, statements, expr) <- case reverse statements of
+			(S.VecAssign name i expr : statements') ->
+				return ((name, i), reverse statements', expr)
+			_ -> mzero
+		guard $ name1 == name2
+		hsValueDefs <- mapM dechlorinatePureStatement statements
+		hsRetValue <- dechlorinateExpression expr
+		return $ pureLet hsValueDefs hsRetValue
+	, do
+		hsValueDefs <- mapM dechlorinatePureStatement statements
+		hsRetValues <- mapM dechlorinateExpression resultExprs
+		return $ pureLet hsValueDefs (D.Tuple hsRetValues)
+	]
 
 dechlorinatePureStatement
 	:: S.VecStatement
@@ -222,7 +236,7 @@ dechlorinatePureStatement = \case
 				hsExpr <- dechlorinateExpression expr
 				return
 					( D.Access "__CASE__"
-					, D.PureLet [D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr]
+					, pureLet [D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr]
 					)
 		let dechlorinateLeaf (exprs, body) = do
 			let genGuard = \case
@@ -240,7 +254,7 @@ dechlorinatePureStatement = \case
 			<- (++ [(D.Access "otherwise", hsBodyElse)])
 			<$> mapM dechlorinateLeaf leafs
 		let hsGuardExpression name
-			= D.PureLet [D.GuardDef (D.PatTuple [name]) hsGuardLeafs]
+			= pureLet [D.GuardDef (D.PatTuple [name]) hsGuardLeafs]
 			$ D.Access name
 		hsRetPat
 			<-  D.PatTuple
@@ -251,6 +265,9 @@ dechlorinatePureStatement = \case
 	st -> error (show st)
 
 beta = foldl1 D.Beta
+
+pureLet [] expr = expr
+pureLet defs expr = D.PureLet defs expr
 
 dechlorinateIndicesList
 	= mapM (uncurry dechlorinateName)
