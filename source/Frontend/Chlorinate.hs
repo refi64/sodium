@@ -13,40 +13,36 @@ import qualified Data.Map as M
 import Success
 
 chlorinate :: S.Program -> (Fail String) D.Program
-chlorinate (S.Program funcs vars body)
-	= do
-		clMain <- do
-			clBody <- chlorinateVB chlorinateName vars body
-			return $ D.Func
-				(D.FuncSig D.NameMain M.empty D.ClVoid) clBody []
-		clFuncs <- mapM
-			chlorinateFunc funcs
-		return $ D.Program (clMain:clFuncs)
+chlorinate (S.Program funcs vars body) = do
+	clMain <- do
+		clBody <- chlorinateVB chlorinateName vars body
+		let clFuncSig = D.FuncSig D.NameMain M.empty D.ClVoid
+		return $ D.Func clFuncSig clBody []
+	clFuncs <- mapM chlorinateFunc funcs
+	return $ D.Program (clMain:clFuncs)
 
-chlorinateVB nameHook (S.Vars vardecls) (S.Body statements)
-	= do
-		clVars <- mapM chlorinateVarDecl (splitVarDecls vardecls)
-		clStatements <- mapM (chlorinateStatement nameHook) statements
-		return $ D.Body (M.fromList clVars) clStatements
+chlorinateVB nameHook (S.Vars vardecls) (S.Body statements) = do
+	clVars <- mapM chlorinateVarDecl (splitVarDecls vardecls)
+	clStatements <- mapM (chlorinateStatement nameHook) statements
+	return $ D.Body (M.fromList clVars) clStatements
 
-chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
-	 = do
-		clName <- chlorinateName name
-		clParams <- M.fromList <$> mapM chlorinateVarDecl (splitVarDecls params)
-		clRetType <- chlorinateType pasType
-		clRetName <- nameHook name
-		let enclose body
-			= body
-			{ D._bodyVars = M.union
-				(D._bodyVars body)
-				(M.singleton clRetName clRetType)
-			}
-		clBody <- enclose <$> chlorinateVB nameHook vars body
-		return $ D.Func (D.FuncSig clName clParams clRetType) clBody [D.Access clRetName]
-	where
-		nameHook cs
-			| cs == name = D.NameUnique <$> chlorinateName cs
-			| otherwise  = chlorinateName cs
+chlorinateFunc (S.Func name (S.Vars params) pasType vars body) = do
+	let nameHook cs
+		| cs == name = D.NameUnique <$> chlorinateName cs
+		| otherwise  = chlorinateName cs
+	clName <- chlorinateName name
+	clParams <- M.fromList <$> mapM chlorinateVarDecl (splitVarDecls params)
+	clRetType <- chlorinateType pasType
+	clRetName <- nameHook name
+	let enclose body
+		= body
+		{ D._bodyVars = M.union
+			(D._bodyVars body)
+			(M.singleton clRetName clRetType)
+		}
+	clBody <- enclose <$> chlorinateVB nameHook vars body
+	let clFuncSig = D.FuncSig clName clParams clRetType
+	return $ D.Func clFuncSig clBody [D.Access clRetName]
 
 chlorinateName name
 	= return $ D.Name name
@@ -116,9 +112,7 @@ chlorinateArgument nameHook = \case
 	expr -> D.RValue <$> chlorinateExpr nameHook expr
 
 chlorinateExpr nameHook = \case
-	S.Access name
-		 -> D.Access
-		<$> nameHook name
+	S.Access name -> D.Access <$> nameHook name
 	S.Call name exprs
 		 -> D.Call
 		<$> (D.CallName <$> chlorinateName name)
@@ -135,16 +129,9 @@ chlorinateExpr nameHook = \case
 		-> return
 		 $ D.Primary
 		 $ D.ENumber intSection fracSection eSign eSection
-	S.Quote cs
-		-> return
-		 $ D.Primary
-		 $ D.Quote cs
-	S.BTrue
-		-> return
-		 $ D.Primary D.BTrue
-	S.BFalse
-		-> return
-		 $ D.Primary D.BFalse
+	S.Quote cs -> return $ D.Primary (D.Quote cs)
+	S.BTrue  -> return $ D.Primary D.BTrue
+	S.BFalse -> return $ D.Primary D.BFalse
 	S.Binary op x y
 		 -> D.Call
 		<$> (D.CallOperator <$> chlorinateOp op)
@@ -155,14 +142,14 @@ chlorinateExpr nameHook = \case
 			 -> D.Call (D.CallOperator D.OpNegate)
 			<$> mapM (chlorinateExpr nameHook) [x]
 
-chlorinateOp = \case
-	S.OpAdd -> return D.OpAdd
-	S.OpSubtract -> return D.OpSubtract
-	S.OpMultiply -> return D.OpMultiply
-	S.OpDivide -> return D.OpDivide
-	S.OpLess -> return D.OpLess
-	S.OpMore -> return D.OpMore
-	S.OpEquals -> return D.OpEquals
-	S.OpAnd -> return D.OpAnd
-	S.OpOr -> return D.OpOr
-	S.OpRange -> return D.OpRange
+chlorinateOp = return . \case
+	S.OpAdd -> D.OpAdd
+	S.OpSubtract -> D.OpSubtract
+	S.OpMultiply -> D.OpMultiply
+	S.OpDivide -> D.OpDivide
+	S.OpLess -> D.OpLess
+	S.OpMore -> D.OpMore
+	S.OpEquals -> D.OpEquals
+	S.OpAnd -> D.OpAnd
+	S.OpOr -> D.OpOr
+	S.OpRange -> D.OpRange
