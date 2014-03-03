@@ -10,7 +10,7 @@ import Data.List
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
-import Chloride.Chloride
+import Chloride.Program
 import Success
 
 vectorize :: Program -> (Fail String) VecProgram

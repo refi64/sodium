@@ -7,8 +7,8 @@ module Frontend.Chlorinate
 import Control.Monad
 import Control.Applicative
 -- S for Src, D for Dest
-import qualified Frontend.Program  as S
-import qualified Chloride.Chloride as D
+import qualified Frontend.Program as S
+import qualified Chloride.Program as D
 import qualified Data.Map as M
 import Success
 

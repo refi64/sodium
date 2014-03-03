@@ -6,7 +6,7 @@ module Chloride.IOMagic
 
 import Control.Monad.Reader
 import qualified Data.Map as M
-import Chloride.Chloride
+import Chloride.Program
 import Success
 
 uncurse :: Program -> (Fail String) Program

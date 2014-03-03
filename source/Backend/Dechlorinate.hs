@@ -9,8 +9,8 @@ import Control.Monad
 import Control.Applicative
 import qualified Data.Map as M
 -- S for Src, D for Dest
-import qualified Chloride.Chloride as S
-import qualified  Backend.Program  as D
+import qualified Chloride.Program as S
+import qualified  Backend.Program as D
 import Success
 
 dechlorinate :: S.VecProgram -> (Fail String) D.Program
