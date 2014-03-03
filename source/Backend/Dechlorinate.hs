@@ -83,11 +83,7 @@ dechlorinateBody (S.VecBody _ statements resultExprs) = do
 dechlorinateStatement :: S.VecStatement -> (Fail String) D.DoStatement
 dechlorinateStatement = \case
 	S.VecExecute retIndices (S.ExecuteRead t) [S.VecLValue name i] -> do
-		hsRetPat
-			<-  D.PatTuple
-			<$> mapM
-				(uncurry dechlorinateName)
-				retIndices
+		hsRetPat <- D.PatTuple <$> dechlorinateIndicesList retIndices
 		let hsExpr
 			| t == S.ClString = D.Access "getLine"
 			| otherwise = D.Binary "<$>" (D.Access "read") (D.Access "getLine")
@@ -139,7 +135,7 @@ dechlorinateStatement = \case
 		return $ D.DoBind
 			hsRetPat
 			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
-	st -> error (show st)
+	_ -> mzero
 
 dechlorinateFunc :: S.VecFunc -> (Fail String) D.Def
 dechlorinateFunc (S.VecFunc (S.FuncSig S.NameMain params S.ClVoid) clBody)
@@ -231,6 +227,27 @@ dechlorinatePureVecCaseBranch (S.VecCaseBranch expr leafs bodyElse) = do
 		$ D.Access name
 	return $ wrap (hsGuardExpression "__RES__")
 
+dechlorinatePureVecIfBranch (S.VecIfBranch expr bodyThen bodyElse)
+	 =  D.IfExpression
+	<$> dechlorinateExpression expr
+	<*> dechlorinatePureBody bodyThen
+	<*> dechlorinatePureBody bodyElse
+
+dechlorinatePureVecForCycle (S.VecForCycle argIndices name exprFrom exprTo clBody) = do
+		hsRange <- dechlorinateRange exprFrom exprTo
+		hsBody <- dechlorinatePureBody clBody
+		hsArgExpr
+			<- D.Tuple
+			<$> (map D.Access
+				<$> dechlorinateIndicesList argIndices)
+		hsFoldLambda <- dechlorinateFoldLambda argIndices name <*> return hsBody
+		return $ beta
+			[ D.Access "foldl"
+			, hsFoldLambda
+			, hsArgExpr
+			, hsRange
+			]
+
 dechlorinatePureStatement
 	:: S.VecStatement
 	-> (Fail String) D.ValueDef
@@ -239,42 +256,22 @@ dechlorinatePureStatement = \case
 		hsExpr <- dechlorinateExpression expr
 		hsName <- dechlorinateName name i
 		return $ D.ValueDef (D.PatFunc hsName []) hsExpr
-	S.VecForStatement retIndices (S.VecForCycle argIndices name exprFrom exprTo clBody) -> do
-		hsRange <- dechlorinateRange exprFrom exprTo
-		hsBody <- dechlorinatePureBody clBody
-		hsArgExpr
-			<- D.Tuple
-			<$> (map D.Access
-				<$> dechlorinateIndicesList argIndices)
-		hsRetPat
-			<-  D.PatTuple
-			<$> dechlorinateIndicesList retIndices
-		hsFoldLambda <- dechlorinateFoldLambda argIndices name <*> return hsBody
-		return $ D.ValueDef
-			hsRetPat
-			(beta
-				[ D.Access "foldl"
-				, hsFoldLambda
-				, hsArgExpr
-				, hsRange
-				]
-			)
-	S.VecIfStatement retIndices (S.VecIfBranch expr bodyThen bodyElse) -> do
-		hsExpr <- dechlorinateExpression expr
-		hsBodyThen <- dechlorinatePureBody bodyThen
-		hsBodyElse <- dechlorinatePureBody bodyElse
-		hsRetPat
-			<-  D.PatTuple
-			<$> dechlorinateIndicesList retIndices
-		return $ D.ValueDef
-			hsRetPat
-			(D.IfExpression hsExpr hsBodyThen hsBodyElse)
+	S.VecForStatement retIndices vecForCycle
+		 -> D.ValueDef
+		<$> (D.PatTuple
+			<$> dechlorinateIndicesList retIndices)
+		<*> dechlorinatePureVecForCycle vecForCycle
+	S.VecIfStatement retIndices vecIfBranch
+		 -> D.ValueDef
+		<$> (D.PatTuple
+			<$> dechlorinateIndicesList retIndices)
+		<*> dechlorinatePureVecIfBranch vecIfBranch
 	S.VecCaseStatement retIndices vecCaseBranch
 		 -> D.ValueDef
 		<$> (D.PatTuple
 			<$> dechlorinateIndicesList retIndices)
 		<*> dechlorinatePureVecCaseBranch vecCaseBranch
-	st -> error (show st)
+	_ -> mzero
 
 beta = foldl1 D.Beta
 
@@ -307,7 +304,7 @@ dechlorinateExpression = \case
 		let binary hsOp = case hsExprs of
 			hsExpr1:hsExpr2:hsExprs ->
 				return $ beta (D.Binary hsOp hsExpr1 hsExpr2 : hsExprs)
-			e -> error (show e)
+			_ -> mzero
 		case callName of
 			S.CallName name
 				-> return
@@ -316,11 +313,11 @@ dechlorinateExpression = \case
 				S.OpNegate -> do
 					case hsExprs of
 						[hsExpr1] -> return (D.Negate hsExpr1)
-						e -> error (show e)
+						_ -> mzero
 				S.OpShow -> do
 					case hsExprs of
 						[hsExpr1] -> return (D.Access "show" `D.Beta` hsExpr1)
-						e -> error (show e)
+						_ -> mzero
 				S.OpAdd -> binary "+"
 				S.OpSubtract -> binary "-"
 				S.OpMultiply -> binary "*"
