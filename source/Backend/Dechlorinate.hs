@@ -192,6 +192,10 @@ instance Dech (Pure S.VecBody) D.Expression where
 					-> (Name name i, ) <$> dech expr
 				S.VecCaseStatement [(name, i)] vecCaseBranch
 					-> (Name name i, ) <$> dech (Pure vecCaseBranch)
+				S.VecForStatement [(name, i)] vecForCycle
+					-> (Name name i, ) <$> dech (Pure vecForCycle)
+				S.VecIfStatement [(name, i)] vecIfBranch
+					-> (Name name i, ) <$> dech (Pure vecIfBranch)
 				_ -> mzero
 			((name2, hsExpr), statements) <- appToLast dechStatement statements
 			guard $ name1 == name2
