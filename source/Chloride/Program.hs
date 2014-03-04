@@ -51,7 +51,6 @@ data Statement
 	= Assign Name Expression
 	| Execute ExecuteName [Argument]
 	| ForStatement ForCycle
-	| IfStatement IfBranch
 	| MultiIfStatement MultiIfBranch
 	| CaseStatement CaseBranch
 	deriving (Show)
@@ -62,13 +61,6 @@ data ForCycle
 	, _forFrom :: Expression
 	, _forTo :: Expression
 	, _forBody :: Body
-	} deriving (Show)
-
-data IfBranch
-	= IfBranch
-	{ _ifExpr :: Expression
-	, _ifThen :: Body
-	, _ifElse :: Body
 	} deriving (Show)
 
 data MultiIfBranch
@@ -106,7 +98,6 @@ data VecStatement
 	= VecAssign Name Integer VecExpression
 	| VecExecute IndicesList ExecuteName [VecArgument]
 	| VecForStatement IndicesList VecForCycle
-	| VecIfStatement IndicesList VecIfBranch
 	| VecMultiIfStatement IndicesList VecMultiIfBranch
 	| VecCaseStatement IndicesList VecCaseBranch
 	deriving (Show)
@@ -118,13 +109,6 @@ data VecForCycle
 	, _vecForFrom :: VecExpression
 	, _vecForTo :: VecExpression
 	, _vecForBody :: VecBody
-	} deriving (Show)
-
-data VecIfBranch
-	= VecIfBranch
-	{ _vecIfExpr :: VecExpression
-	, _vecIfThen :: VecBody
-	, _vecIfElse :: VecBody
 	} deriving (Show)
 
 data VecMultiIfBranch

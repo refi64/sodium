@@ -99,27 +99,6 @@ vectorizeStatement = \case
 			vecFrom vecTo
 			vecBody
 		return $ VecForStatement retIndices vecForCycle
-	IfStatement ifBranch -> do
-		vecExpr <- readerToState $ vectorizeExpression (_ifExpr ifBranch)
-		preIndices <- get
-		(vecBodyThenGen, changedThen) <- lift $ vectorizeBody
-			preIndices
-			(_ifThen ifBranch)
-		(vecBodyElseGen, changedElse) <- lift $ vectorizeBody
-			preIndices
-			(_ifElse ifBranch)
-		let changed = nub $ changedThen ++ changedElse
-		let accessChanged = map Access changed
-		vecBodyThen <- lift $ vecBodyThenGen accessChanged
-		vecBodyElse <- lift $ vecBodyElseGen accessChanged
-		let vecIfBranch = VecIfBranch
-			vecExpr
-			vecBodyThen
-			vecBodyElse
-		mapM registerIndexUpdate changed
-		postIndices <- get
-		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
-		return $ VecIfStatement retIndices vecIfBranch
 	MultiIfStatement multiIfBranch -> do
 		preIndices <- get
 		let vectorizeLeafGen (expr, body) = do

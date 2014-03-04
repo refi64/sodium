@@ -110,13 +110,6 @@ instance Dech S.VecForCycle D.Expression where
 			, hsRange
 			]
 
-instance Dech S.VecIfBranch D.Expression where
-	dech (S.VecIfBranch expr bodyThen bodyElse) = do
-		hsExpr <- dech expr
-		hsBodyThen <- dech bodyThen
-		hsBodyElse <- dech bodyElse
-		return $ D.IfExpression hsExpr hsBodyThen hsBodyElse
-
 instance Dech S.VecMultiIfBranch D.Expression where
 	dech (S.VecMultiIfBranch leafs bodyElse) = do
 		let dechLeaf (expr, body)
@@ -155,8 +148,6 @@ instance Dech S.VecStatement D.DoStatement where
 			D.DoLet <$> dech (Name name i) <*> return hsExpr
 		S.VecForStatement retIndices vecForCycle
 			-> wrap retIndices vecForCycle
-		S.VecIfStatement retIndices vecIfBranch
-			-> wrap retIndices vecIfBranch
 		S.VecMultiIfStatement retIndices vecMultiIfBranch
 			-> wrap retIndices vecMultiIfBranch
 		_ -> mzero
@@ -206,8 +197,8 @@ instance Dech (Pure S.VecBody) D.Expression where
 					-> (Name name i, ) <$> dech (Pure vecCaseBranch)
 				S.VecForStatement [(name, i)] vecForCycle
 					-> (Name name i, ) <$> dech (Pure vecForCycle)
-				S.VecIfStatement [(name, i)] vecIfBranch
-					-> (Name name i, ) <$> dech (Pure vecIfBranch)
+				S.VecMultiIfStatement [(name, i)] vecMultiIfBranch
+					-> (Name name i, ) <$> dech (Pure vecMultiIfBranch)
 				_ -> mzero
 			((name2, hsExpr), statements) <- appToLast dechStatement statements
 			guard $ name1 == name2
@@ -259,13 +250,6 @@ instance Dech (Pure S.VecMultiIfBranch) D.Expression where
 		hsBodyElse <- dech (Pure bodyElse)
 		return $ foldr ($) hsBodyElse leafGens
 
-instance Dech (Pure S.VecIfBranch) D.Expression where
-	dech (Pure (S.VecIfBranch expr bodyThen bodyElse))
-		 =  D.IfExpression
-		<$> dech expr
-		<*> dech (Pure bodyThen)
-		<*> dech (Pure bodyElse)
-
 instance Dech (Pure S.VecForCycle) D.Expression where
 	dech (Pure (S.VecForCycle argIndices name exprFrom exprTo clBody)) = do
 		hsRange <- dech $ Range exprFrom exprTo
@@ -286,8 +270,6 @@ instance Dech (Pure S.VecStatement) D.ValueDef where
 			return $ D.ValueDef (D.PatFunc hsName []) hsExpr
 		S.VecForStatement retIndices vecForCycle
 			-> wrap retIndices vecForCycle
-		S.VecIfStatement retIndices vecIfBranch
-			-> wrap retIndices vecIfBranch
 		S.VecMultiIfStatement retIndices vecMultiIfBranch
 			-> wrap retIndices vecMultiIfBranch
 		S.VecCaseStatement retIndices vecCaseBranch

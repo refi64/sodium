@@ -47,10 +47,6 @@ uncurseStatement = \case
 	ForStatement forCycle -> do
 		uncBody <- uncurseBody (_forBody forCycle)
 		return $ ForStatement (forCycle { _forBody = uncBody })
-	IfStatement ifBranch -> do
-		uncBodyThen <- uncurseBody (_ifThen ifBranch)
-		uncBodyElse <- uncurseBody (_ifElse ifBranch)
-		return $ IfStatement (ifBranch {_ifThen = uncBodyThen, _ifElse = uncBodyElse})
 	MultiIfStatement multiIfBranch -> do
 		let uncurseLeaf (expr, body) = do
 			uncBody <- uncurseBody body
