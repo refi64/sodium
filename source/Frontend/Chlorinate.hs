@@ -6,6 +6,7 @@ module Frontend.Chlorinate
 
 import Control.Monad
 import Control.Applicative
+import Control.Monad.Reader
 -- S for Src, D for Dest
 import qualified Frontend.Program as S
 import qualified Chloride.Program as D
@@ -13,36 +14,42 @@ import qualified Data.Map as M
 import Success
 
 chlorinate :: S.Program -> (Fail String) D.Program
-chlorinate (S.Program funcs vars body) = do
+chlorinate program = runReaderT (chlor program) []
+
+chlor :: S.Program -> ReaderT [S.Name] (Fail String) D.Program
+chlor (S.Program funcs vars body) = do
 	clMain <- do
-		clBody <- chlorinateVB chlorinateName vars body
+		clBody <- chlorinateVB vars body
 		let clFuncSig = D.FuncSig D.NameMain M.empty D.ClVoid
 		return $ D.Func clFuncSig clBody []
 	clFuncs <- mapM chlorinateFunc funcs
 	return $ D.Program (clMain:clFuncs)
 
-chlorinateVB nameHook (S.Vars vardecls) (S.Body statements) = do
+chlorinateVB (S.Vars vardecls) (S.Body statements) = do
 	clVars <- mapM chlorinateVarDecl (splitVarDecls vardecls)
-	clStatements <- mapM (chlorinateStatement nameHook) statements
+	clStatements <- mapM chlorinateStatement statements
 	return $ D.Body (M.fromList clVars) clStatements
 
-chlorinateFunc (S.Func name (S.Vars params) pasType vars body) = do
-	let nameHook cs
-		| cs == name = D.NameUnique <$> chlorinateName cs
-		| otherwise  = chlorinateName cs
-	clName <- chlorinateName name
-	clParams <- M.fromList <$> mapM chlorinateVarDecl (splitVarDecls params)
-	clRetType <- chlorinateType pasType
-	clRetName <- nameHook name
-	let enclose body
-		= body
-		{ D._bodyVars = M.union
-			(D._bodyVars body)
-			(M.singleton clRetName clRetType)
-		}
-	clBody <- enclose <$> chlorinateVB nameHook vars body
-	let clFuncSig = D.FuncSig clName clParams clRetType
-	return $ D.Func clFuncSig clBody [D.Access clRetName]
+nameHook cs = do
+	names <- ask
+	let wrap = if cs `elem` names then D.NameUnique else id
+	wrap <$> chlorinateName cs
+
+chlorinateFunc (S.Func name (S.Vars params) pasType vars body)
+	= withReaderT (name:) $ do
+		clName <- chlorinateName name
+		clParams <- M.fromList <$> mapM chlorinateVarDecl (splitVarDecls params)
+		clRetType <- chlorinateType pasType
+		clRetName <- nameHook name
+		let enclose body
+			= body
+			{ D._bodyVars = M.union
+				(D._bodyVars body)
+				(M.singleton clRetName clRetType)
+			}
+		clBody <- enclose <$> chlorinateVB vars body
+		let clFuncSig = D.FuncSig clName clParams clRetType
+		return $ D.Func clFuncSig clBody [D.Access clRetName]
 
 chlorinateName name
 	= return $ D.Name name
@@ -65,66 +72,66 @@ chlorinateType = \case
 	S.PasString  -> return D.ClString
 	S.PasType cs -> mzero
 
-chlorinateMultiIf nameHook
+chlorinateMultiIf
 	= \expr bodyThen mBodyElse -> do
 		clLeaf
 			<- (,)
-			<$> chlorinateExpr nameHook expr
-			<*> chlorinateVB nameHook (S.Vars []) bodyThen
+			<$> chlorinateExpr expr
+			<*> chlorinateVB (S.Vars []) bodyThen
 		clBase <- case mBodyElse of
 			Nothing -> return $ D.MultiIfBranch [] (D.Body M.empty [])
 			Just (S.Body [S.IfBranch expr' bodyThen' mBodyElse'])
-				-> chlorinateMultiIf nameHook expr' bodyThen' mBodyElse'
+				-> chlorinateMultiIf expr' bodyThen' mBodyElse'
 			Just body -> do
-				clBody <- chlorinateVB nameHook (S.Vars []) body
+				clBody <- chlorinateVB (S.Vars []) body
 				return $ D.MultiIfBranch [] clBody
 		return $ clBase { D._multiIfLeafs = clLeaf : D._multiIfLeafs clBase }
 
-chlorinateStatement nameHook = \case
+chlorinateStatement = \case
 	S.Assign name expr
 		 -> D.Assign
 		<$> nameHook name
-		<*> chlorinateExpr nameHook expr
+		<*> chlorinateExpr expr
 	S.Execute name exprs
 		 -> D.Execute
 		<$> (D.ExecuteName <$> chlorinateName name)
-		<*> mapM (chlorinateArgument nameHook) exprs
+		<*> mapM chlorinateArgument exprs
 	S.ForCycle name fromExpr toExpr body
 		-> D.ForStatement <$> do
 			clName <- nameHook name
-			clFromExpr <- chlorinateExpr nameHook fromExpr
-			clToExpr <- chlorinateExpr nameHook toExpr
-			clBody <- chlorinateVB nameHook (S.Vars []) body
+			clFromExpr <- chlorinateExpr fromExpr
+			clToExpr <- chlorinateExpr toExpr
+			clBody <- chlorinateVB (S.Vars []) body
 			return $ D.ForCycle clName clFromExpr clToExpr clBody
 	S.IfBranch expr bodyThen mBodyElse
 		-> D.MultiIfStatement
-		<$> chlorinateMultiIf nameHook expr bodyThen mBodyElse
+		<$> chlorinateMultiIf expr bodyThen mBodyElse
 	S.CaseBranch expr leafs mBodyElse
 		-> D.CaseStatement <$> do
-			clExpr <- chlorinateExpr nameHook expr
+			clExpr <- chlorinateExpr expr
 			let chlorinateLeaf (exprs, body) = do
-				clExprs <- mapM (chlorinateExpr nameHook) exprs
-				clBody <- chlorinateVB nameHook (S.Vars []) body
+				clExprs <- mapM chlorinateExpr exprs
+				clBody <- chlorinateVB (S.Vars []) body
 				return (clExprs, clBody)
 			clLeafs <- mapM chlorinateLeaf leafs
 			clBodyElse <- case mBodyElse of
 				Just bodyElse ->
-					chlorinateVB nameHook (S.Vars []) bodyElse
+					chlorinateVB (S.Vars []) bodyElse
 				Nothing ->
 					return $ D.Body M.empty []
 			return $ D.CaseBranch clExpr clLeafs clBodyElse
 
 
-chlorinateArgument nameHook = \case
+chlorinateArgument = \case
 	S.Access name -> D.LValue <$> nameHook name
-	expr -> D.RValue <$> chlorinateExpr nameHook expr
+	expr -> D.RValue <$> chlorinateExpr expr
 
-chlorinateExpr nameHook = \case
+chlorinateExpr = \case
 	S.Access name -> D.Access <$> nameHook name
 	S.Call name exprs
 		 -> D.Call
 		<$> (D.CallName <$> chlorinateName name)
-		<*> mapM (chlorinateExpr nameHook) exprs
+		<*> mapM chlorinateExpr exprs
 	S.INumber intSection
 		-> return
 		 $ D.Primary
@@ -143,12 +150,12 @@ chlorinateExpr nameHook = \case
 	S.Binary op x y
 		 -> D.Call
 		<$> (D.CallOperator <$> chlorinateOp op)
-		<*> mapM (chlorinateExpr nameHook) [x, y]
+		<*> mapM chlorinateExpr [x, y]
 	S.Unary op x -> case op of
-		S.UOpPlus -> chlorinateExpr nameHook x
+		S.UOpPlus -> chlorinateExpr x
 		S.UOpNegate
 			 -> D.Call (D.CallOperator D.OpNegate)
-			<$> mapM (chlorinateExpr nameHook) [x]
+			<$> mapM chlorinateExpr [x]
 
 chlorinateOp = return . \case
 	S.OpAdd -> D.OpAdd
