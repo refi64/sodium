@@ -120,6 +120,31 @@ vectorizeStatement = \case
 		postIndices <- get
 		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
 		return $ VecIfStatement retIndices vecIfBranch
+	MultiIfStatement multiIfBranch -> do
+		preIndices <- get
+		let vectorizeLeafGen (expr, body) = do
+			vecExpr <- readerToState $ vectorizeExpression expr
+			(vecBodyGen, changed) <- lift $ vectorizeBody
+				preIndices
+				body
+			return ((vecExpr, vecBodyGen), changed)
+		(vecLeafGens, changedList)
+			<- unzip
+			<$> mapM vectorizeLeafGen (_multiIfLeafs multiIfBranch)
+		(vecBodyElseGen, changedElse)
+			<- lift $ vectorizeBody preIndices (_multiIfElse multiIfBranch)
+		let changed = nub $ changedElse ++ concat changedList
+		let accessChanged = map Access changed
+		let genLeaf (vecExpr, vecBodyGen) = do
+			vecBody <- lift $ vecBodyGen accessChanged
+			return (vecExpr, vecBody)
+		vecLeafs <- mapM genLeaf vecLeafGens
+		vecBodyElse <- lift $ vecBodyElseGen accessChanged
+		let vecMultiIfBranch = VecMultiIfBranch vecLeafs vecBodyElse
+		mapM registerIndexUpdate changed
+		postIndices <- get
+		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
+		return $ VecMultiIfStatement retIndices vecMultiIfBranch
 	CaseStatement caseBranch -> do
 		vecExpr <- readerToState $ vectorizeExpression (_caseExpr caseBranch)
 		preIndices <- get

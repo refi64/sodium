@@ -65,6 +65,21 @@ chlorinateType = \case
 	S.PasString  -> return D.ClString
 	S.PasType cs -> mzero
 
+chlorinateMultiIf nameHook
+	= \expr bodyThen mBodyElse -> do
+		clLeaf
+			<- (,)
+			<$> chlorinateExpr nameHook expr
+			<*> chlorinateVB nameHook (S.Vars []) bodyThen
+		clBase <- case mBodyElse of
+			Nothing -> return $ D.MultiIfBranch [] (D.Body M.empty [])
+			Just (S.Body [S.IfBranch expr' bodyThen' mBodyElse'])
+				-> chlorinateMultiIf nameHook expr' bodyThen' mBodyElse'
+			Just body -> do
+				clBody <- chlorinateVB nameHook (S.Vars []) body
+				return $ D.MultiIfBranch [] clBody
+		return $ clBase { D._multiIfLeafs = clLeaf : D._multiIfLeafs clBase }
+
 chlorinateStatement nameHook = \case
 	S.Assign name expr
 		 -> D.Assign
@@ -82,15 +97,8 @@ chlorinateStatement nameHook = \case
 			clBody <- chlorinateVB nameHook (S.Vars []) body
 			return $ D.ForCycle clName clFromExpr clToExpr clBody
 	S.IfBranch expr bodyThen mBodyElse
-		-> D.IfStatement <$> do
-			clExpr <- chlorinateExpr nameHook expr
-			clBodyThen <- chlorinateVB nameHook (S.Vars []) bodyThen
-			clBodyElse <- case mBodyElse of
-				Just bodyElse ->
-					chlorinateVB nameHook (S.Vars []) bodyElse
-				Nothing ->
-					return $ D.Body M.empty []
-			return $ D.IfBranch clExpr clBodyThen clBodyElse
+		-> D.MultiIfStatement
+		<$> chlorinateMultiIf nameHook expr bodyThen mBodyElse
 	S.CaseBranch expr leafs mBodyElse
 		-> D.CaseStatement <$> do
 			clExpr <- chlorinateExpr nameHook expr

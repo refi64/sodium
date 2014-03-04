@@ -117,6 +117,16 @@ instance Dech S.VecIfBranch D.Expression where
 		hsBodyElse <- dech bodyElse
 		return $ D.IfExpression hsExpr hsBodyThen hsBodyElse
 
+instance Dech S.VecMultiIfBranch D.Expression where
+	dech (S.VecMultiIfBranch leafs bodyElse) = do
+		let dechLeaf (expr, body)
+			 =  D.IfExpression
+			<$> dech expr
+			<*> dech body
+		leafGens <- mapM dechLeaf leafs
+		hsBodyElse <- dech bodyElse
+		return $ foldr ($) hsBodyElse leafGens
+
 instance Dech S.VecStatement D.DoStatement where
 	dech = \case
 		S.VecExecute retIndices (S.ExecuteRead t) [S.VecLValue name i] -> do
@@ -147,6 +157,8 @@ instance Dech S.VecStatement D.DoStatement where
 			-> wrap retIndices vecForCycle
 		S.VecIfStatement retIndices vecIfBranch
 			-> wrap retIndices vecIfBranch
+		S.VecMultiIfStatement retIndices vecMultiIfBranch
+			-> wrap retIndices vecMultiIfBranch
 		_ -> mzero
 		where wrap retIndices vecPart = do
 			hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
@@ -237,6 +249,16 @@ instance Dech (Pure S.VecCaseBranch) D.Expression where
 			$ D.Access name
 		return $ wrap (hsGuardExpression "__RES__")
 
+instance Dech (Pure S.VecMultiIfBranch) D.Expression where
+	dech (Pure (S.VecMultiIfBranch leafs bodyElse)) = do
+		let dechLeaf (expr, body)
+			 =  D.IfExpression
+			<$> dech expr
+			<*> dech (Pure body)
+		leafGens <- mapM dechLeaf leafs
+		hsBodyElse <- dech (Pure bodyElse)
+		return $ foldr ($) hsBodyElse leafGens
+
 instance Dech (Pure S.VecIfBranch) D.Expression where
 	dech (Pure (S.VecIfBranch expr bodyThen bodyElse))
 		 =  D.IfExpression
@@ -266,6 +288,8 @@ instance Dech (Pure S.VecStatement) D.ValueDef where
 			-> wrap retIndices vecForCycle
 		S.VecIfStatement retIndices vecIfBranch
 			-> wrap retIndices vecIfBranch
+		S.VecMultiIfStatement retIndices vecMultiIfBranch
+			-> wrap retIndices vecMultiIfBranch
 		S.VecCaseStatement retIndices vecCaseBranch
 			-> wrap retIndices vecCaseBranch
 		_ -> mzero

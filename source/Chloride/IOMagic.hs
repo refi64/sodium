@@ -51,6 +51,18 @@ uncurseStatement = \case
 		uncBodyThen <- uncurseBody (_ifThen ifBranch)
 		uncBodyElse <- uncurseBody (_ifElse ifBranch)
 		return $ IfStatement (ifBranch {_ifThen = uncBodyThen, _ifElse = uncBodyElse})
+	MultiIfStatement multiIfBranch -> do
+		let uncurseLeaf (expr, body) = do
+			uncBody <- uncurseBody body
+			return (expr, uncBody)
+		uncLeafs <- mapM uncurseLeaf (_multiIfLeafs multiIfBranch)
+		uncBodyElse <- uncurseBody (_multiIfElse multiIfBranch)
+		return
+			$ MultiIfStatement
+			$ multiIfBranch
+			{ _multiIfLeafs = uncLeafs
+			, _multiIfElse = uncBodyElse
+			}
 	statement -> return statement
 
 lookupType name = do
