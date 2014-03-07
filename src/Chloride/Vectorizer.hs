@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase, TupleSections #-}
-
 module Chloride.Vectorizer
 	( vectorize
 	) where

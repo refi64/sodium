@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Backend.Render
 	( render
 	) where

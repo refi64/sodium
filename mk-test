@@ -1,11 +1,8 @@
 #!/bin/bash
 
-ROOTDIR=$(dirname $0)
+cd $(dirname $0)
 
-ghc $ROOTDIR/source/Main.hs -O2 -threaded -with-rtsopts="-N" \
-	-outputdir $ROOTDIR/build -i$ROOTDIR/source -o $ROOTDIR/exe &&
-[[ $1 == "--test" || $1 == '-t' ]] &&
-for DIR in $ROOTDIR/test/source/* ; do
+for DIR in test/source/* ; do
 for FILE in $DIR/impl/*.pas ; do
 	DIRNAME=$(basename $DIR)
 	FILENAME=$(basename $FILE .pas)
@@ -17,10 +14,10 @@ for FILE in $DIR/impl/*.pas ; do
 	mkdir $TMPDIR/ghc_obj
 	mkdir $TMPDIR/fpc_bin
 	mkdir $TMPDIR/ghc_bin
-	DIR_DEST=$ROOTDIR/test/dest/$DIRNAME
+	DIR_DEST=test/dest/$DIRNAME
 	mkdir -p $DIR_DEST
 	FILE_DEST=$DIR_DEST/$FILENAME.hs
-	$ROOTDIR/exe $FILE $FILE_DEST &> $TMPDIR/compile_out &&
+	cabal run $FILE $FILE_DEST &> $TMPDIR/compile_out &&
 	fpc -FE$TMPDIR/fpc_bin -FU$TMPDIR/fpc_obj $FILE &> $TMPDIR/compile_out &&
 	ghc $FILE_DEST -outputdir $TMPDIR/ghc_obj -o $TMPDIR/ghc_bin/$FILENAME &> $TMPDIR/compile_out
 	if [ $? != 0 ] ; then

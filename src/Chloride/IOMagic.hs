@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Chloride.IOMagic
 	( uncurse
 	) where

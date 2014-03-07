@@ -1,10 +1,4 @@
-{-# LANGUAGE
-   LambdaCase
- , TupleSections
- , MultiParamTypeClasses
- , FunctionalDependencies
- , FlexibleInstances
- #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Backend.Dechlorinate
 	( dechlorinate

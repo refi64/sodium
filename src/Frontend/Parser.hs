@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 module Frontend.Parser (parse) where
 
 import Control.Applicative
