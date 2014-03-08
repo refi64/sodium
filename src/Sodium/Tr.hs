@@ -1,4 +1,4 @@
-module Tr
+module Sodium.Tr
 	( Tr
 	, runTr
 	, state
@@ -47,7 +47,7 @@ trap tr next =
 		return $ a b
 
 trapGuard :: (Functor m, MonadPlus m) => Tr x m b -> (x -> Bool) -> (x -> m b)
-trapGuard tr p = Tr.trap (const <$> tr) (guard . p)
+trapGuard tr p = trap (const <$> tr) (guard . p)
 
 expect :: (Eq x, MonadPlus m) => x -> Tr [x] m x
 expect x = mfilter (==x) head

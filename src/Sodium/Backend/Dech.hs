@@ -1,20 +1,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Backend.Dechlorinate
-	( dechlorinate
-	) where
+module Sodium.Backend.Dech (Dech(..)) where
 
 import Data.List (genericReplicate)
 import Control.Monad
 import Control.Applicative
 import qualified Data.Map as M
 -- S for Src, D for Dest
-import qualified Chloride.Program as S
-import qualified  Backend.Program as D
-import Success
-
-dechlorinate :: S.VecProgram -> (Fail String) D.Program
-dechlorinate = dech
+import qualified Sodium.Chloride.Program as S
+import qualified  Sodium.Backend.Program as D
+import Sodium.Success
 
 class Dech s d | s -> d where
 	dech :: s -> (Fail String) d

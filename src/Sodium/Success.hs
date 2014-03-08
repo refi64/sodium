@@ -1,4 +1,4 @@
-module Success where
+module Sodium.Success where
 
 import Control.Applicative
 import Control.Monad
@@ -36,3 +36,7 @@ instance Alternative (Fail x) where
 annotate :: Maybe a -> Integer -> x -> Fail x a
 annotate (Just a) _ _ = Success a
 annotate Nothing i x = Fail i [x]
+
+flatten :: Fail x a -> Either [x] a
+flatten (Success a) = Right a
+flatten (Fail _ xs) = Left xs

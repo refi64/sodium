@@ -1,4 +1,4 @@
-module Frontend.Token (Token(..)) where
+module Sodium.Frontend.Token (Token(..)) where
 
 data Token
 	= KwVar

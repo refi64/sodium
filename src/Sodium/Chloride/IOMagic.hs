@@ -1,11 +1,9 @@
-module Chloride.IOMagic
-	( uncurse
-	) where
+module Sodium.Chloride.IOMagic (uncurse) where
 
 import Control.Monad.Reader
 import qualified Data.Map as M
-import Chloride.Program
-import Success
+import Sodium.Chloride.Program
+import Sodium.Success
 
 uncurse :: Program -> (Fail String) Program
 uncurse (Program funcs) = do

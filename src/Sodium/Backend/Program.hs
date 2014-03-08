@@ -1,4 +1,4 @@
-module Backend.Program
+module Sodium.Backend.Program
 	( Name
 	, Program(..)
 	, Def(..)

@@ -1,11 +1,9 @@
-module Backend.Render
-	( render
-	) where
+module Sodium.Backend.Render (render) where
 
 import Data.List (intersperse)
 import qualified Text.PrettyPrint as P
-import Backend.Program
-import Success
+import Sodium.Backend.Program
+import Sodium.Success
 
 vsep = foldr (P.$+$) P.empty
 

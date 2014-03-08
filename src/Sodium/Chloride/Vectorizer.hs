@@ -1,6 +1,4 @@
-module Chloride.Vectorizer
-	( vectorize
-	) where
+module Sodium.Chloride.Vectorizer (vectorize) where
 
 import Control.Monad
 import Control.Applicative
@@ -8,8 +6,8 @@ import Data.List
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.Map as M
-import Chloride.Program
-import Success
+import Sodium.Chloride.Program
+import Sodium.Success
 
 vectorize :: Program -> (Fail String) VecProgram
 vectorize (Program funcs) = do

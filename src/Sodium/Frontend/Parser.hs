@@ -1,12 +1,12 @@
-module Frontend.Parser (parse) where
+module Sodium.Frontend.Parser (parse) where
 
 import Control.Applicative
 import Control.Monad
 import Data.Maybe
-import qualified Tr
-import qualified Frontend.Token as T
-import Frontend.Program
-import Success
+import qualified Sodium.Tr as Tr
+import qualified Sodium.Frontend.Token as T
+import Sodium.Frontend.Program
+import Sodium.Success
 
 parse :: [T.Token] -> (Fail String) Program
 parse = Tr.trapGuard programTr isDot where

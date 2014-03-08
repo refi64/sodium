@@ -1,11 +1,11 @@
-module Frontend.Tokenizer (tokenize) where
+module Sodium.Frontend.Tokenizer (tokenize) where
 
 import Control.Applicative
 import Control.Monad
 import qualified Data.Char as C
-import qualified Tr
-import Frontend.Token
-import Success
+import qualified Sodium.Tr as Tr
+import Sodium.Frontend.Token
+import Sodium.Success
 
 tokenize :: String -> (Fail String) [Token]
 tokenize = Tr.trapGuard

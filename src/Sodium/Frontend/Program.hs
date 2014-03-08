@@ -1,4 +1,4 @@
-module Frontend.Program
+module Sodium.Frontend.Program
 	( Program(..)
 	, Vars(..)
 	, Body(..)

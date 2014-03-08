@@ -1,4 +1,4 @@
-module Chloride.Program where
+module Sodium.Chloride.Program where
 
 import qualified Data.Map as M
 

@@ -1,17 +1,15 @@
 {-# LANGUAGE FlexibleInstances #-}
  
-module Frontend.Chlorinate
-	( chlorinate
-	) where
+module Sodium.Frontend.Chlorinate (chlorinate) where
 
 import Control.Monad
 import Control.Applicative
 import Control.Monad.Reader
 -- S for Src, D for Dest
-import qualified Frontend.Program as S
-import qualified Chloride.Program as D
+import qualified Sodium.Frontend.Program as S
+import qualified Sodium.Chloride.Program as D
 import qualified Data.Map as M
-import Success
+import Sodium.Success
 
 chlorinate :: S.Program -> (Fail String) D.Program
 chlorinate = flip runReaderT [] . chlor
