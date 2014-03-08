@@ -1,34 +1,40 @@
 module Sodium.Frontend.Tokenizer (tokenize) where
 
+import Prelude hiding (head)
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State.Lazy
 import qualified Data.Char as C
-import qualified Sodium.Tr as Tr
+import Sodium.Tr (trapGuard, head, fallback)
+import qualified Sodium.Tr (expect)
 import Sodium.Frontend.Token
 import Sodium.Success
 
 tokenize :: String -> (Fail String) [Token]
-tokenize = Tr.trapGuard
+tokenize = trapGuard
 	(many $ many ignored *> token)
 	(all C.isSpace)
 
-token :: Tr.Tr String (Fail String) Token
+-- TODO: annotate
+expect c = Sodium.Tr.expect c
+
+token :: StateT String (Fail String) Token
 token = msum
-	[ LParen <$ Tr.expect '('
-	, RParen <$ Tr.expect ')'
-	, LSqBrace <$ Tr.expect '['
-	, RSqBrace <$ Tr.expect ']'
-	, Plus  <$ Tr.expect '+'
-	, Minus <$ Tr.expect '-'
-	, Asterisk <$ Tr.expect '*'
-	, Slash <$ Tr.expect '/'
-	, Comma <$ Tr.expect ','
-	, Semicolon <$ Tr.expect ';'
-	, EqSign <$ Tr.expect '='
-	, Suck <$ Tr.expect '<'
-	, Blow <$ Tr.expect '>'
-	, Tr.expect '.' *> Tr.fallback Dot (DoubleDot <$ Tr.expect '.')
-	, Tr.expect ':' *> Tr.fallback Colon (Assign <$ Tr.expect '=')
+	[ LParen <$ expect '('
+	, RParen <$ expect ')'
+	, LSqBrace <$ expect '['
+	, RSqBrace <$ expect ']'
+	, Plus  <$ expect '+'
+	, Minus <$ expect '-'
+	, Asterisk <$ expect '*'
+	, Slash <$ expect '/'
+	, Comma <$ expect ','
+	, Semicolon <$ expect ';'
+	, EqSign <$ expect '='
+	, Suck <$ expect '<'
+	, Blow <$ expect '>'
+	, expect '.' *> fallback Dot (DoubleDot <$ expect '.')
+	, expect ':' *> fallback Colon (Assign <$ expect '=')
 	, number
 	, name
 	, quote
@@ -36,7 +42,7 @@ token = msum
 
 ignored = void whitespace <|> comment
 
-name = mangle <$> some (letter <|> Tr.expect '_') where
+name = mangle <$> some (letter <|> expect '_') where
 	mangle cs = maybe (Name cs) id (lookup cs keywords)
 	keywords =
 		[ ("var", KwVar)
@@ -59,39 +65,39 @@ name = mangle <$> some (letter <|> Tr.expect '_') where
 
 number = do
 	let sign
-		= Tr.fallback True
-		$ (True <$ Tr.expect '+') <|> (False <$ Tr.expect '-')
+		= fallback True
+		$ (True <$ expect '+') <|> (False <$ expect '-')
 	intSection <- some digit
-	Tr.fallback (INumber intSection) $ do
-		Tr.expect '.'
+	fallback (INumber intSection) $ do
+		expect '.'
 		fracSection <- some digit
-		Tr.fallback (FNumber intSection fracSection) $ do
-			Tr.expect 'e'
+		fallback (FNumber intSection fracSection) $ do
+			expect 'e'
 			eSign <- sign
 			eSection <- some digit
 			return (ENumber intSection fracSection eSign eSection)
 
 quote = Quote <$> (qmark *> quote') where
-	qmark = Tr.expect '\''
+	qmark = expect '\''
 	quote'
-		 =  qmark *> Tr.fallback "" (next qmark)
-		<|> next Tr.head
+		 =  qmark *> fallback "" (next qmark)
+		<|> next head
 	next x = (:) <$> x <*> quote'
 
-comment = Tr.expect '{' *> comment' where
+comment = expect '{' *> comment' where
 	comment'
-		 =  void (Tr.expect '}')
-		<|> (comment <|> void Tr.head) *> comment'
+		 =  void (expect '}')
+		<|> (comment <|> void head) *> comment'
 
-whitespace = mfilter C.isSpace Tr.head
+whitespace = mfilter C.isSpace head
 
-letter = C.toLower <$> mfilter C.isAlphaNum Tr.head
+letter = C.toLower <$> mfilter C.isAlphaNum head
 
-digit = mfilter C.isDigit Tr.head
+digit = mfilter C.isDigit head
 
 -- Not used for now
 sodiumSpecial
 	= SodiumSpecial
-	<$ Tr.expect '{'
+	<$ expect '{'
 	<* many whitespace
-	<* mapM Tr.expect "#SODIUM"
+	<* mapM expect "#SODIUM"
