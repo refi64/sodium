@@ -21,7 +21,8 @@ data Program
 	= Program [Def] [String] [String]
 	deriving (Show)
 
-type Def = ValueDef
+data Def = Def ValueDef
+	deriving (Show)
 
 data ValueDef
 	= ValueDef Pattern Expression

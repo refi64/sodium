@@ -17,16 +17,13 @@ class Dech s d | s -> d where
 instance Dech S.VecProgram D.Program where
 	dech (S.VecProgram funcs) = do
 		funcDefs <- mapM dech funcs
-		return $ D.Program funcDefs
+		return $ D.Program (map D.Def funcDefs)
 			[ "Control.Monad"
 			, "Control.Applicative"
 			]
 			[ "LambdaCase"
 			, "TupleSections"
 			]
-
-data VarState = VarState D.HsType Integer
-type VarStates = M.Map D.Name VarState
 
 transformName :: S.Name -> D.Name
 transformName = \case
@@ -111,7 +108,7 @@ instance Dech S.VecMultiIfBranch D.Expression where
 
 instance Dech S.VecStatement D.DoStatement where
 	dech = \case
-		S.VecExecute retIndices (S.ExecuteRead t) [S.VecLValue name i] -> do
+		S.VecExecute retIndices (S.ExecuteRead t) _ -> do
 			hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
 			hsExpr <- if t == S.ClString
 				then return $ D.Access "getLine"
@@ -144,12 +141,12 @@ instance Dech S.VecStatement D.DoStatement where
 			hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
 			D.DoBind hsRetPat <$> dech vecPart
 
-instance Dech S.VecFunc D.Def where
+instance Dech S.VecFunc D.ValueDef where
 	dech (S.VecFunc (S.FuncSig S.NameMain params S.ClVoid) clBody) = do
 		guard $ M.null params
 		hsBody <- dech clBody
 		return $ D.ValueDef (D.PatFunc "main" []) hsBody
-	dech (S.VecFunc (S.FuncSig name params retType) clBody)
+	dech (S.VecFunc (S.FuncSig name params _) clBody)
 		 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
 		<$> dech (Pure clBody)
 		where paramNames = map transformName (M.keys params)

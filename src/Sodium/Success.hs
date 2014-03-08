@@ -11,7 +11,7 @@ data Fail x a
 instance Monad (Fail x) where
 	return = Success
 	Success a >>= f = f a
-	Fail i xs >>= f = Fail i xs
+	Fail i xs >>= _ = Fail i xs
 
 instance MonadPlus (Fail x) where
 	mzero = Fail 0 []

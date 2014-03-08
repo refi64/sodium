@@ -1,8 +1,7 @@
 module Sodium.Chloride.Vectorizer (vectorize) where
 
-import Control.Monad
-import Control.Applicative
 import Data.List
+import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.Map as M

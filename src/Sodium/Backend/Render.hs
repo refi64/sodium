@@ -14,7 +14,7 @@ render (Program defs imports exts)
 	$ vsep
 	$ [renderExts exts]
 	++ map renderImport imports
-	++ map renderDef defs
+	++ map (\(Def def) -> renderDef def) defs
 
 renderExts cs
 	= P.hsep
