@@ -62,8 +62,122 @@ renderDef (GuardDef pat leafs)
 			, renderExpression expr2
 			]
 
-renderExpression (Access name)
-	= renderName name
+data Fixity
+	= LFix
+	| RFix
+	| NFix
+	deriving Eq
+
+data Level
+	= ALevel Integer Fixity
+	| HLevel
+	| SLevel
+
+renderExpr :: Expression -> (P.Doc, Level)
+
+renderExpr (Access name)
+	= (renderName name, HLevel)
+
+renderExpr (Tuple [expr])
+	= renderExpr expr
+
+renderExpr (Tuple exprs)
+	= (, HLevel)
+	$ P.parens
+	$ P.hsep
+	$ P.punctuate P.comma
+	$ map renderExpression
+	$ exprs
+
+renderExpr (Range exprFrom exprTo)
+	= let
+		(operand1, level1) = renderExpr exprFrom
+		(operand2, level2) = renderExpr exprTo
+		wrap = \case
+			SLevel -> P.parens
+			_ -> id
+		doc = wrap level1 operand1 P.<> P.text ".." P.<> wrap level2 operand2
+	in (P.brackets doc, HLevel)
+
+renderExpr BTrue
+	= (P.text "True", HLevel)
+
+renderExpr BFalse
+	= (P.text "False", HLevel)
+
+renderExpr (Quote cs)
+	= (P.text (show cs), HLevel)
+
+renderExpr (INumber intSection)
+	= (P.text intSection, HLevel)
+
+renderExpr (FNumber intSection fracSection)
+	= (, HLevel)
+	$ P.hcat
+	[ P.text intSection
+	, P.text "."
+	, P.text fracSection
+	]
+
+renderExpr (ENumber intSection fracSection eSign eSection)
+	= (, HLevel)
+	$ P.hcat
+	[ P.text intSection
+	, P.text "."
+	, P.text fracSection
+	, P.text "e"
+	, if eSign
+		then P.text "+"
+		else P.text "-"
+	, P.text eSection
+	]
+
+renderExpr (Negate expr)
+	= (, HLevel)
+	$ P.parens
+	$ P.text "-" P.<> renderExpression expr
+
+renderExpr (Beta expr1 expr2) = renderBinary "" expr1 expr2
+renderExpr (Binary op expr1 expr2) = renderBinary op expr1 expr2
+renderExpr expr = (renderExpression expr, SLevel)
+
+renderOp "" lhs rhs = lhs P.<+> rhs
+renderOp op lhs rhs = lhs P.<+> renderName op P.<+> rhs
+
+renderBinary op expr1 expr2
+	= (renderOp op lhs rhs, uncurry ALevel opfix)
+	where
+		opfix = whatfix op
+		(operand1, level1) = renderExpr expr1
+		(operand2, level2) = renderExpr expr2
+		defaultHandler n m _
+			| m > n = id
+			| otherwise = P.parens
+		advHandler n f m g
+			| m > n = id
+			| f == g && m == n = id
+			| otherwise = P.parens
+		(handler1, handler2) = case opfix of
+			(n, NFix) -> (\a -> (a, a)) (defaultHandler n)
+			(n, LFix) -> (advHandler n LFix, defaultHandler n)
+			(n, RFix) -> (defaultHandler n, advHandler n RFix)
+		wrap handler = \case
+			SLevel -> P.parens
+			HLevel -> id
+			ALevel n fix -> handler n fix
+		lhs = wrap handler1 level1 operand1
+		rhs = wrap handler2 level2 operand2
+
+whatfix op
+	= maybe (9, LFix) id (lookup op fixtable)
+	where fixtable =
+		[ ("", (10, LFix))
+		, ("+", (6, LFix))
+		, ("-", (6, LFix))
+		, ("*", (7, LFix))
+		, ("/", (7, LFix))
+		]
+
 
 renderExpression (Lambda pats expr)
 	= P.hsep
@@ -74,29 +188,6 @@ renderExpression (Lambda pats expr)
 	, P.text "->"
 	, renderExpression expr
 	]
-
-renderExpression (Beta expr1 expr2)
-	= P.hsep
-	$ map P.parens
-	$ map renderExpression
-	$ [expr1, expr2]
-
-renderExpression (Binary op expr1 expr2)
-	= P.hsep
-	[ P.parens $ renderExpression expr1
-	, renderName op
-	, P.parens $ renderExpression expr2
-	]
-
-renderExpression (Tuple [Access name])
-	= renderName name
-
-renderExpression (Tuple exprs)
-	= P.parens
-	$ P.hsep
-	$ P.punctuate P.comma
-	$ map renderExpression
-	$ exprs
 
 renderExpression (Typed expr t)
 	= P.hsep
@@ -125,56 +216,15 @@ renderExpression (PureLet valueDefs expr)
 	P.$+$
 		(P.text "in" P.<+> renderExpression expr)
 
-renderExpression (Range exprFrom exprTo)
-	= P.brackets
-	$ P.hcat
-	[ renderExpression exprFrom
-	, P.text ".."
-	, renderExpression exprTo
-	]
-
 renderExpression (IfExpression expr bodyThen bodyElse)
 	= (P.text "if" P.<+> renderExpression expr)
 	P.$+$ (P.text "then" P.<+> renderExpression bodyThen)
 	P.$+$ (P.text "else" P.<+> renderExpression bodyElse)
 
-renderExpression (Quote cs)
-	= P.text (show cs)
 
-renderExpression (INumber intSection)
-	= P.text intSection
-
-renderExpression (FNumber intSection fracSection)
-	= P.hcat
-	[ P.text intSection
-	, P.text "."
-	, P.text fracSection
-	]
-
-renderExpression (ENumber intSection fracSection eSign eSection)
-	= P.hcat
-	[ P.text intSection
-	, P.text "."
-	, P.text fracSection
-	, P.text "e"
-	, if eSign
-		then P.text "+"
-		else P.text "-"
-	, P.text eSection
-	]
-
-renderExpression (Negate expr)
-	= P.hcat
-	[ P.text "(-"
-	, renderExpression expr
-	, P.text ")"
-	]
-
-renderExpression BTrue
-	= P.text "True"
-
-renderExpression BFalse
-	= P.text "False"
+renderExpression expr
+	= fst
+	$ renderExpr expr
 
 renderName
 	= P.text
@@ -182,7 +232,7 @@ renderName
 renderType = \case
 	HsType cs  -> P.text cs
 	HsUnit -> P.text "()"
-	HsIO t -> P.hsep [P.text "IO", renderType t]
+	HsIO t -> P.text "IO" P.<+> renderType t
 
 renderStatement (DoBind pat expr)
 	= P.hsep
