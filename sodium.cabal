@@ -20,6 +20,7 @@ library
                        Sodium.Chloride.Program
                        Sodium.Chloride.Vectorizer
                        Sodium.Chloride.IOMagic
+                       Sodium.Chloride.Pattern
                        Sodium.Tr
                        Sodium.Success
 

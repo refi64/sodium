@@ -8,6 +8,7 @@ import Sodium.Backend.Dech         (dech)
 import Sodium.Backend.Render       (render)
 import Sodium.Chloride.Vectorizer  (vectorize)
 import Sodium.Chloride.IOMagic     (uncurse)
+import Sodium.Chloride.Pattern     (sub)
 import Sodium.Success (flatten)
 
 translate :: String -> Either [String] String
@@ -15,6 +16,7 @@ translate = flatten . translate'
 	where translate'
 		 =  render
 		<=< dech
+		<=< sub
 		<=< vectorize
 		<=< uncurse
 		<=< chlorinate
