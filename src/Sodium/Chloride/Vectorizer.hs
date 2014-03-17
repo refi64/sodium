@@ -79,6 +79,7 @@ vectorizeStatement = \case
 		-- TODO: wrap inner names
 		-- in NameUnique to resolve name conflicts
 		preIndices <- get
+		-- TODO: nullify indices ??
 		let closure
 			= M.insert (_forName forCycle) (-1)
 			$ preIndices
@@ -87,9 +88,11 @@ vectorizeStatement = \case
 		mapM registerIndexUpdate changed
 		postIndices <- get
 		argIndices <- lift $ runReaderT (closedIndices changed) preIndices
+		let argExprs = map (uncurry VecAccess) argIndices
 		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
 		let vecForCycle = VecForCycle
 			argIndices
+			argExprs
 			(_forName forCycle)
 			vecFrom vecTo
 			vecBody

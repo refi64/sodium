@@ -105,6 +105,7 @@ data VecStatement
 data VecForCycle
 	= VecForCycle
 	{ _vecForArgIndices :: IndicesList
+	, _vecForArgExprs :: [VecExpression]
 	, _vecForName :: Name
 	, _vecForFrom :: VecExpression
 	, _vecForTo :: VecExpression

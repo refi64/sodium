@@ -82,12 +82,9 @@ instance Dech S.VecBody D.Expression where
 		return $ D.DoExpression (hsStatements ++ [hsStatement])
 
 instance Dech S.VecForCycle D.Expression where
-	dech (S.VecForCycle argIndices name exprFrom exprTo clBody) = do
+	dech (S.VecForCycle argIndices argExprs name exprFrom exprTo clBody) = do
 		hsRange <- dech $ Range exprFrom exprTo
-		hsArgExpr
-			<-  D.Tuple
-			<$> (map D.Access
-			<$> dech (IndicesList argIndices))
+		hsArgExpr <- D.Tuple <$> mapM dech argExprs
 		hsFoldLambda <- dech (FoldLambda argIndices name) <*> dech clBody
 		return $ beta
 			[ D.Access "foldM"
@@ -237,12 +234,9 @@ instance Dech (Pure S.VecMultiIfBranch) D.Expression where
 		return $ foldr ($) hsBodyElse leafGens
 
 instance Dech (Pure S.VecForCycle) D.Expression where
-	dech (Pure (S.VecForCycle argIndices name exprFrom exprTo clBody)) = do
+	dech (Pure (S.VecForCycle argIndices argExprs name exprFrom exprTo clBody)) = do
 		hsRange <- dech $ Range exprFrom exprTo
-		hsArgExpr
-			<- D.Tuple
-			<$> (map D.Access
-				<$> dech (IndicesList argIndices))
+		hsArgExpr <- D.Tuple <$> mapM dech argExprs
 		hsFoldLambda
 			<-  dech (FoldLambda argIndices name)
 			<*> dech (Pure clBody)

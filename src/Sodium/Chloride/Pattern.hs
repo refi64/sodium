@@ -120,4 +120,37 @@ instance SubstituteSingleAccess VecStatement where
 		VecExecute indices executeName args
 			 -> VecExecute indices executeName
 			<$> mapM substituteSingleAccess args
+		VecForStatement indices forCycle
+			 -> VecForStatement indices
+			<$> substituteSingleAccess forCycle
 		_ -> lift $ SubstituteAmbiguous
+
+instance SubstituteSingleAccess VecForCycle where
+	substituteSingleAccess (VecForCycle argIndices argExprs name exprFrom exprTo body) = do
+		subExprFrom <- substituteSingleAccess exprFrom
+		subExprTo   <- substituteSingleAccess exprTo
+		(subArgExprs, subBody) <- ask >>= k . runReaderT
+			(mapM substituteSingleAccess argExprs)
+		return $ VecForCycle
+			argIndices
+				subArgExprs
+				name
+				subExprFrom
+				subExprTo
+				subBody
+		where k = \case
+			SubstituteAmbiguous -> lift $ SubstituteAmbiguous
+			SubstituteNone subArgExprs
+				 -> (subArgExprs,)
+				<$> substituteSingleAccess body
+			SubstituteSingle subArgExprs
+				-- body untouched due to scoping
+				 -> return (subArgExprs, body)
+
+instance SubstituteSingleAccess VecBody where
+	substituteSingleAccess (VecBody vars statements exprs)
+		-- not accounting for scoping
+		-- TODO: check if the variable is shadowed
+		 =  VecBody vars
+		<$> mapM substituteSingleAccess statements
+		<*> mapM substituteSingleAccess exprs
