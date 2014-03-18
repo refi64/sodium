@@ -5,7 +5,6 @@ import Control.Monad.Reader
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Sodium.Success
-import Debug.Trace
 
 sub :: VecProgram -> (Fail String) VecProgram
 sub (VecProgram funcs) = do
@@ -20,39 +19,36 @@ subFunc func = do
 	return $ func { _vecFuncBody = subBody }
 
 subBody :: VecBody -> ReaderT Vars (Fail String) VecBody
-subBody body
+subBody = bodyEliminateAssign
+
+bodyEliminateAssign body
 	= local (M.union $ _vecBodyVars body)
-	$ msum
-		[ do
-			(subResults, subStatements) <- eliminateAssign
-				(_vecBodyResults body)
-				(_vecBodyStatements body)
-			return $ body
-				{ _vecBodyStatements = subStatements
-				, _vecBodyResults = subResults
-				}
-		-- No pattern was matched
-		, (unlines . map show) (_vecBodyStatements body) `trace` return body
-		]
+	$ do
+		(subResults, subStatements) <- eliminateAssign
+			(_vecBodyResults body)
+			(_vecBodyStatements body)
+		return $ body
+			{ _vecBodyStatements = subStatements
+			, _vecBodyResults = subResults
+			}
 
 eliminateAssign
-	:: [VecExpression]
+	:: MonadPlus m
+	=> [VecExpression]
 	-> [VecStatement]
-	-> ReaderT Vars (Fail String) ([VecExpression], [VecStatement])
+	-> ReaderT Vars m ([VecExpression], [VecStatement])
 eliminateAssign bodyResults [] = return (bodyResults, [])
 eliminateAssign bodyResults (statement:statements) = msum
 	[ case statement of
 		VecAssign name i expr -> do
 			let subSingle
-				 =  flip runReaderT (name, i, expr)
+				 =  flip runReaderT ((name, i), expr)
 				 $  (,)
 				<$> mapM substituteSingleAccess bodyResults
 				<*> mapM substituteSingleAccess statements
 			case subSingle of
-				SubstituteSingle (subResults, subStatements)
-					-> eliminateAssign subResults subStatements
-				SubstituteNone   (subResults, subStatements)
-					-> eliminateAssign subResults subStatements
+				SubstituteSingle subPair -> uncurry eliminateAssign subPair
+				SubstituteNone   subPair -> uncurry eliminateAssign subPair
 				SubstituteAmbiguous -> mzero
 		_ -> mzero
 	, do
@@ -83,14 +79,14 @@ instance Monad SubstituteSingle where
 
 class SubstituteSingleAccess a where
 	substituteSingleAccess :: a -> ReaderT
-		(Name, Integer, VecExpression) SubstituteSingle a
+		((Name, Integer), VecExpression) SubstituteSingle a
 
 instance SubstituteSingleAccess VecExpression where
 	substituteSingleAccess = \case
 		VecPrimary prim -> return $ VecPrimary prim
 		VecAccess name' j -> do
-			(name, i, expr) <- ask
-			if name == name' && i == j
+			(name, expr) <- ask
+			if name == (name', j)
 				then lift (SubstituteSingle expr)
 				else return (VecAccess name' j)
 		VecCall callName exprs -> do
@@ -103,8 +99,8 @@ instance SubstituteSingleAccess VecArgument where
 		-- variable in a call, but it needs to be allowed as soon
 		-- as proper side effect management is implemented.
 		VecLValue name' j -> do
-			(name, i, _) <- ask
-			if name == name' && i == j
+			(name, _) <- ask
+			if name == (name', j)
 				then lift SubstituteAmbiguous
 				else return (VecLValue name' j)
 		VecRValue expr -> VecRValue <$> substituteSingleAccess expr
