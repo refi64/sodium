@@ -1,6 +1,7 @@
 module Sodium.Chloride.IOMagic (uncurse) where
 
 import Control.Monad.Reader
+import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Sodium.Success
@@ -13,16 +14,16 @@ uncurse (Program funcs) = do
 uncurseFunc :: Func -> (Fail String) Func
 uncurseFunc func = do
 	uncBody <- runReaderT
-		(uncurseBody (_funcBody func))
-		(_funcParams $ _funcSig func)
-	return $ func { _funcBody = uncBody }
+		(uncurseBody $ func ^. funcBody)
+		(func ^. funcSig . funcParams)
+	return $ funcBody .~ uncBody $ func
 
 uncurseBody :: Body -> ReaderT Vars (Fail String) Body
 uncurseBody body
-	= local (M.union $ _bodyVars body)
+	= local (M.union $ body ^. bodyVars)
 	$ do
-		uncStatements <- mapM uncurseStatement (_bodyStatements body)
-		return $ body { _bodyStatements = uncStatements }
+		uncStatements <- mapM uncurseStatement (body ^. bodyStatements)
+		return $ bodyStatements .~ uncStatements $ body
 
 uncurseStatement :: Statement -> ReaderT Vars (Fail String) Statement
 uncurseStatement = \case
@@ -41,20 +42,19 @@ uncurseStatement = \case
 					_ -> RValue $ Call (CallOperator OpShow) [Access name]
 		return $ Execute ExecuteWrite args'
 	ForStatement forCycle -> do
-		uncBody <- uncurseBody (_forBody forCycle)
-		return $ ForStatement (forCycle { _forBody = uncBody })
+		uncBody <- uncurseBody (forCycle ^. forBody)
+		return $ ForStatement (forBody .~ uncBody $ forCycle)
 	MultiIfStatement multiIfBranch -> do
 		let uncurseLeaf (expr, body) = do
 			uncBody <- uncurseBody body
 			return (expr, uncBody)
-		uncLeafs <- mapM uncurseLeaf (_multiIfLeafs multiIfBranch)
-		uncBodyElse <- uncurseBody (_multiIfElse multiIfBranch)
+		uncLeafs <- mapM uncurseLeaf (multiIfBranch ^. multiIfLeafs )
+		uncBodyElse <- uncurseBody (multiIfBranch ^. multiIfElse)
 		return
 			$ MultiIfStatement
+			$ multiIfLeafs .~ uncLeafs
+			$ multiIfElse  .~ uncBodyElse
 			$ multiIfBranch
-			{ _multiIfLeafs = uncLeafs
-			, _multiIfElse = uncBodyElse
-			}
 	statement -> return statement
 
 lookupType name = do

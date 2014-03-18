@@ -1,5 +1,7 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Sodium.Chloride.Program where
 
+import Control.Lens.TH
 import qualified Data.Map as M
 
 data Name
@@ -184,3 +186,13 @@ type Indices
 
 type IndicesList
 	= [(Name, Integer)]
+
+makeLenses ''FuncSig
+makeLenses ''Func
+makeLenses ''Body
+makeLenses ''ForCycle
+makeLenses ''MultiIfBranch
+makeLenses ''CaseBranch
+
+makeLenses ''VecFunc
+makeLenses ''VecBody

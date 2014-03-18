@@ -2,6 +2,7 @@ module Sodium.Chloride.Pattern (sub) where
 
 import Control.Applicative
 import Control.Monad.Reader
+import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Sodium.Success
@@ -14,23 +15,23 @@ sub (VecProgram funcs) = do
 subFunc :: VecFunc -> (Fail String) VecFunc
 subFunc func = do
 	subBody <- runReaderT
-		(subBody (_vecFuncBody func))
-		(_funcParams $ _vecFuncSig func)
-	return $ func { _vecFuncBody = subBody }
+		(subBody (func ^. vecFuncBody))
+		(func ^. vecFuncSig . funcParams)
+	return $ vecFuncBody .~ subBody $ func
 
 subBody :: VecBody -> ReaderT Vars (Fail String) VecBody
 subBody = bodyEliminateAssign
 
 bodyEliminateAssign body
-	= local (M.union $ _vecBodyVars body)
+	= local (M.union $ body ^. vecBodyVars)
 	$ do
 		(subResults, subStatements) <- eliminateAssign
-			(_vecBodyResults body)
-			(_vecBodyStatements body)
-		return $ body
-			{ _vecBodyStatements = subStatements
-			, _vecBodyResults = subResults
-			}
+			(body ^. vecBodyResults)
+			(body ^. vecBodyStatements)
+		return
+			$ vecBodyStatements .~ subStatements
+			$ vecBodyResults .~ subResults
+			$ body
 
 eliminateAssign
 	:: MonadPlus m

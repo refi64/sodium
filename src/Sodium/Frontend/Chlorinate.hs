@@ -5,6 +5,7 @@ module Sodium.Frontend.Chlorinate (chlorinate) where
 import Control.Monad
 import Control.Applicative
 import Control.Monad.Reader
+import Control.Lens
 -- S for Src, D for Dest
 import qualified Sodium.Frontend.Program as S
 import qualified Sodium.Chloride.Program as D
@@ -49,11 +50,8 @@ instance Chlor S.Func D.Func where
 			clParams <- M.fromList <$> mapM chlor (splitVarDecls params)
 			clRetType <- chlor pasType
 			clRetName <- nameHook name
-			let enclose body = body
-				{ D._bodyVars = M.union
-					(D._bodyVars body)
-					(M.singleton clRetName clRetType)
-				}
+			let enclose = D.bodyVars
+				%~ flip M.union (M.singleton clRetName clRetType)
 			clBody <- enclose <$> chlor (VB vars body)
 			let clFuncSig = D.FuncSig clName clParams clRetType
 			return $ D.Func clFuncSig clBody [D.Access clRetName]
@@ -90,7 +88,7 @@ chlorinateMultiIf expr bodyThen mBodyElse = do
 		Just body -> do
 			clBody <- chlor (vb body)
 			return $ D.MultiIfBranch [] clBody
-	return $ clBase { D._multiIfLeafs = clLeaf : D._multiIfLeafs clBase }
+	return $ D.multiIfLeafs %~ (clLeaf:) $ clBase
 
 instance Chlor S.Statement D.Statement where
 	chlor = \case

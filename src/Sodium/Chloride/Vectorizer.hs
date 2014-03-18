@@ -4,6 +4,7 @@ import Data.List
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
+import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Sodium.Success
@@ -15,20 +16,20 @@ vectorize (Program funcs) = do
 
 vectorizeFunc :: Func -> (Fail String) VecFunc
 vectorizeFunc func = do
-	let closure = initIndices 1 (_funcParams $ _funcSig func)
-	(vecBodyGen, _) <- vectorizeBody closure (_funcBody func)
-	vecBody <- vecBodyGen $ _funcResults func
-	return $ VecFunc (_funcSig func) vecBody
+	let closure = initIndices 1 (func ^. funcSig . funcParams)
+	(vecBodyGen, _) <- vectorizeBody closure (func ^. funcBody)
+	vecBody <- vecBodyGen $ func ^. funcResults
+	return $ VecFunc (func ^. funcSig) vecBody
 
 vectorizeBody :: Indices -> Body -> (Fail String) ([Expression] -> (Fail String) VecBody, [Name])
 vectorizeBody closure body = do
 	let indices = M.union
-		(initIndices 0 (_bodyVars body))
+		(initIndices 0 (body ^. bodyVars))
 		closure
 	(vecStatements, indices')
 		<- flip runStateT indices
 		$ mapM vectorizeStatement
-			(_bodyStatements body)
+			(body ^. bodyStatements)
 	let changed
 		= M.keys
 		$ M.filter id
@@ -40,7 +41,7 @@ vectorizeBody closure body = do
 			$ mapM vectorizeExpression
 				results
 		return $ VecBody
-			(_bodyVars body)
+			(body ^. bodyVars)
 			vecStatements
 			vecResults
 	return (vecBodyGen, changed)
@@ -74,16 +75,16 @@ vectorizeStatement = \case
 		retIndices <- readerToState $ closedIndices sidenames
 		return $ VecExecute retIndices name vecArgs
 	ForStatement forCycle -> do
-		vecFrom <- readerToState $ vectorizeExpression (_forFrom forCycle)
-		vecTo <- readerToState $ vectorizeExpression (_forTo forCycle)
+		vecFrom <- readerToState $ vectorizeExpression (forCycle ^. forFrom)
+		vecTo <- readerToState $ vectorizeExpression (forCycle ^. forTo)
 		-- TODO: wrap inner names
 		-- in NameUnique to resolve name conflicts
 		preIndices <- get
 		-- TODO: nullify indices ??
 		let closure
-			= M.insert (_forName forCycle) (-1)
+			= M.insert (forCycle ^. forName) (-1)
 			$ preIndices
-		(vecBodyGen, changed) <- lift $ vectorizeBody closure (_forBody forCycle)
+		(vecBodyGen, changed) <- lift $ vectorizeBody closure (forCycle ^. forBody)
 		vecBody <- lift $ vecBodyGen (map Access changed)
 		mapM registerIndexUpdate changed
 		postIndices <- get
@@ -93,7 +94,7 @@ vectorizeStatement = \case
 		let vecForCycle = VecForCycle
 			argIndices
 			argExprs
-			(_forName forCycle)
+			(forCycle ^. forName)
 			vecFrom vecTo
 			vecBody
 		return $ VecForStatement retIndices vecForCycle
@@ -107,9 +108,9 @@ vectorizeStatement = \case
 			return ((vecExpr, vecBodyGen), changed)
 		(vecLeafGens, changedList)
 			<- unzip
-			<$> mapM vectorizeLeafGen (_multiIfLeafs multiIfBranch)
+			<$> mapM vectorizeLeafGen (multiIfBranch ^. multiIfLeafs )
 		(vecBodyElseGen, changedElse)
-			<- lift $ vectorizeBody preIndices (_multiIfElse multiIfBranch)
+			<- lift $ vectorizeBody preIndices (multiIfBranch ^. multiIfElse)
 		let changed = nub $ changedElse ++ concat changedList
 		let accessChanged = map Access changed
 		let genLeaf (vecExpr, vecBodyGen) = do
@@ -123,7 +124,7 @@ vectorizeStatement = \case
 		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
 		return $ VecMultiIfStatement retIndices vecMultiIfBranch
 	CaseStatement caseBranch -> do
-		vecExpr <- readerToState $ vectorizeExpression (_caseExpr caseBranch)
+		vecExpr <- readerToState $ vectorizeExpression (caseBranch ^. caseExpr)
 		preIndices <- get
 		let vectorizeLeafGen (exprs, body) = do
 			vecExprs <- readerToState $ mapM vectorizeExpression exprs
@@ -133,9 +134,9 @@ vectorizeStatement = \case
 			return ((vecExprs, vecBodyGen), changed)
 		(vecLeafGens, changedList)
 			<-  unzip
-			<$> mapM vectorizeLeafGen (_caseLeafs caseBranch)
+			<$> mapM vectorizeLeafGen (caseBranch ^. caseLeafs )
 		(vecBodyElseGen, changedElse)
-			<- lift $ vectorizeBody preIndices (_caseElse caseBranch)
+			<- lift $ vectorizeBody preIndices (caseBranch ^. caseElse )
 		let changed = nub $ changedElse ++ concat changedList
 		let accessChanged = map Access changed
 		let genLeaf (exprs, leafGen) = do
