@@ -1,6 +1,6 @@
 module Sodium.Frontend.Program
 	( Program(..)
-	, Vars(..)
+	, Vars
 	, Body(..)
 	, Func(..)
 	, VarDecl(..)
@@ -18,9 +18,7 @@ data Program
 	= Program [Func] Vars Body
 	deriving (Show)
 
-data Vars
-	= Vars [VarDecl]
-	deriving (Show)
+type Vars = [VarDecl]
 
 data Body
 	= Body [Statement]

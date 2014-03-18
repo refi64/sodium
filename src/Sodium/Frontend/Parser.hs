@@ -38,10 +38,9 @@ programTr
 	<*> bodyTr
 
 varsTr
-	 =  fallback (Vars [])
-	 $  Vars
-	<$  expect T.KwVar
-	<*> many (varDeclTr
+	 =  fallback []
+	 $  expect T.KwVar
+	 *> many (varDeclTr
 	<*  expect T.Semicolon)
 
 varDeclTr
@@ -81,7 +80,7 @@ funcTr
 	 =  Func
 	<$  expect T.KwFunction
 	<*> nameTr
-	<*> fallback (Vars []) paramsTr
+	<*> fallback [] paramsTr
 	<*  expect T.Colon
 	<*> typeTr
 	<*  expect T.Semicolon
@@ -90,9 +89,8 @@ funcTr
 	<*  expect T.Semicolon
 
 paramsTr
-	 =  Vars
-	<$  expect T.LParen
-	<*> (end <|> next)
+	 =  expect T.LParen
+	 *> (end <|> next)
 	where
 		end = expect T.RParen *> return []
 		next

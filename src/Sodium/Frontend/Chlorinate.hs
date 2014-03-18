@@ -30,13 +30,13 @@ instance Chlor S.Program D.Program where
 		return $ D.Program (clMain:clFuncs)
 
 data VB = VB S.Vars S.Body
-vb = VB (S.Vars [])
+vb = VB []
 
 instance Chlor VB D.Body where
-	chlor (VB (S.Vars vardecls) (S.Body statements)) = do
-		clVars <- mapM chlor (splitVarDecls vardecls)
-		clStatements <- mapM chlor statements
-		return $ D.Body (M.fromList clVars) clStatements
+	chlor (VB vardecls (S.Body statements))
+		 =  D.Body
+		<$> (M.fromList <$> mapM chlor (splitVarDecls vardecls))
+		<*> mapM chlor statements
 
 nameHook cs = do
 	names <- ask
@@ -44,25 +44,24 @@ nameHook cs = do
 	wrap <$> chlor cs
 
 instance Chlor S.Func D.Func where
-	chlor (S.Func name (S.Vars params) pasType vars body)
+	chlor (S.Func name params pasType vars body)
 		= withReaderT (name:) $ do
-			clName <- chlor name
-			clParams <- M.fromList <$> mapM chlor (splitVarDecls params)
-			clRetType <- chlor pasType
+			clFuncSig
+				<-  D.FuncSig
+				<$> chlor name
+				<*> (M.fromList <$> mapM chlor (splitVarDecls params))
+				<*> chlor pasType
 			clRetName <- nameHook name
-			let enclose = D.bodyVars
-				%~ flip M.union (M.singleton clRetName clRetType)
+			let enclose = D.bodyVars %~
+				(M.insert clRetName $ clFuncSig ^. D.funcRetType)
 			clBody <- enclose <$> chlor (VB vars body)
-			let clFuncSig = D.FuncSig clName clParams clRetType
 			return $ D.Func clFuncSig clBody [D.Access clRetName]
 
 instance Chlor S.Name D.Name where
 	chlor = return . D.Name
 
-splitVarDecls vardecls = do
-	S.VarDecl names t <- vardecls
-	name <- names
-	return $ VarDecl name t
+splitVarDecls vardecls
+	= [VarDecl name t | S.VarDecl names t <- vardecls, name <- names]
 
 data VarDecl = VarDecl S.Name S.PasType
 
@@ -79,16 +78,16 @@ instance Chlor S.PasType D.ClType where
 		S.PasString  -> return D.ClString
 		S.PasType cs -> mzero
 
-chlorinateMultiIf expr bodyThen mBodyElse = do
-	clLeaf <- (,) <$> chlor expr <*> chlor (vb bodyThen)
-	clBase <- case mBodyElse of
-		Nothing -> return $ D.MultiIfBranch [] (D.Body M.empty [])
-		Just (S.Body [S.IfBranch expr' bodyThen' mBodyElse'])
-			-> chlorinateMultiIf expr' bodyThen' mBodyElse'
-		Just body -> do
-			clBody <- chlor (vb body)
-			return $ D.MultiIfBranch [] clBody
-	return $ D.multiIfLeafs %~ (clLeaf:) $ clBase
+chlorinateMultiIf expr bodyThen mBodyElse
+	 =  over D.multiIfLeafs . (:)
+	<$> liftA2 (,) (chlor expr) (chlor $ vb bodyThen)
+	<*> maybe (return emptyBranch) k mBodyElse
+	where
+		emptyBranch = D.MultiIfBranch [] (D.Body M.empty [])
+		k = \case
+			S.Body [S.IfBranch expr bodyThen mBodyElse]
+				-> chlorinateMultiIf expr bodyThen mBodyElse
+			body -> D.MultiIfBranch [] <$> chlor (vb body)
 
 instance Chlor S.Statement D.Statement where
 	chlor = \case
@@ -98,12 +97,12 @@ instance Chlor S.Statement D.Statement where
 			<$> (D.ExecuteName <$> chlor name)
 			<*> mapM chlor (map Argument exprs)
 		S.ForCycle name fromExpr toExpr body
-			-> D.ForStatement <$> do
-				clName <- nameHook name
-				clFromExpr <- chlor fromExpr
-				clToExpr <-chlor toExpr
-				clBody <- chlor (vb body)
-				return $ D.ForCycle clName clFromExpr clToExpr clBody
+			-> (D.ForStatement <$>)
+			 $  D.ForCycle
+			<$> nameHook name
+			<*> chlor fromExpr
+			<*> chlor toExpr
+			<*> chlor (vb body)
 		S.IfBranch expr bodyThen mBodyElse
 			-> D.MultiIfStatement
 			<$> chlorinateMultiIf expr bodyThen mBodyElse
