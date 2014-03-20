@@ -35,7 +35,6 @@ data Expression
 	| Beta Expression Expression
 	-- TODO: Sections instead of Binary
 	| Binary Name Expression Expression
-	| Negate Expression
 	| Tuple [Expression]
 	| Quote String
 	| INumber String

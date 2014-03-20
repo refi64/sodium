@@ -272,7 +272,7 @@ instance Dech S.VecExpression D.Expression where
 				-> return
 				 $ beta (D.Access (transformName name) : hsExprs)
 			S.CallOperator op -> case op of
-				S.OpNegate -> unary D.Negate
+				S.OpNegate -> unary (D.Beta $ D.Access "negate")
 				S.OpShow -> unary (D.Beta $ D.Access "show")
 				S.OpAdd -> binary (D.Binary "+")
 				S.OpSubtract -> binary (D.Binary "-")

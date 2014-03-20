@@ -132,11 +132,6 @@ renderExpr (ENumber intSection fracSection eSign eSection)
 	, P.text eSection
 	]
 
-renderExpr (Negate expr)
-	= (, HLevel)
-	$ P.parens
-	$ P.text "-" P.<> renderExpression expr
-
 renderExpr (Beta expr1 expr2) = renderBinary "" expr1 expr2
 renderExpr (Binary op expr1 expr2) = renderBinary op expr1 expr2
 renderExpr expr = (renderExpression expr, SLevel)
