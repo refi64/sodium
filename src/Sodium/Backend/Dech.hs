@@ -176,12 +176,12 @@ instance Dech (Pure S.VecBody) D.Expression where
 			let dechStatement = \case
 				S.VecAssign name i expr
 					-> (Name name i, ) <$> dech expr
-				S.VecCaseStatement [(name, i)] vecCaseBranch
-					-> (Name name i, ) <$> dech (Pure vecCaseBranch)
 				S.VecForStatement [(name, i)] vecForCycle
 					-> (Name name i, ) <$> dech (Pure vecForCycle)
 				S.VecMultiIfStatement [(name, i)] vecMultiIfBranch
 					-> (Name name i, ) <$> dech (Pure vecMultiIfBranch)
+				S.VecBodyStatement [(name, i)] vecBody
+					-> (Name name i, ) <$> dech (Pure vecBody)
 				_ -> mzero
 			((name2, hsExpr), statements) <- appToLast dechStatement statements
 			guard $ name1 == name2
@@ -192,36 +192,6 @@ instance Dech (Pure S.VecBody) D.Expression where
 			hsRetValues <- mapM dech resultExprs
 			return $ pureLet hsValueDefs (D.Tuple hsRetValues)
 		]
-
-instance Dech (Pure S.VecCaseBranch) D.Expression where
-	dech (Pure (S.VecCaseBranch expr leafs bodyElse)) = do
-		(caseExpr, wrap) <- case expr of
-			S.VecAccess name i -> do
-				hsName <- dech (Name name i)
-				return (D.Access hsName, id)
-			expr -> do
-				hsExpr <- dech expr
-				let wrap = pureLet [D.ValueDef (D.PatTuple ["__CASE__"]) hsExpr]
-				return (D.Access "__CASE__", wrap)
-		let genGuard = \case
-			S.VecCall (S.CallOperator S.OpRange) [exprFrom, exprTo] -> do
-				hsRange <- dech $ Range exprFrom exprTo
-				return $ D.Binary "`elem`" caseExpr hsRange
-			expr -> do
-				hsExpr <- dech expr
-				return $ D.Binary "==" caseExpr hsExpr
-		let dechLeaf (exprs, body) = do
-			hsExprs <- mapM genGuard exprs
-			hsBody <- dech (Pure body)
-			return (foldl1 (D.Binary "||") hsExprs, hsBody)
-		hsBodyElse <- dech (Pure bodyElse)
-		hsGuardLeafs
-			<- (++ [(D.Access "otherwise", hsBodyElse)])
-			<$> mapM dechLeaf leafs
-		let hsGuardExpression name
-			= pureLet [D.GuardDef (D.PatTuple [name]) hsGuardLeafs]
-			$ D.Access name
-		return $ wrap (hsGuardExpression "__RES__")
 
 instance Dech (Pure S.VecMultiIfBranch) D.Expression where
 	dech (Pure (S.VecMultiIfBranch leafs bodyElse)) = do
@@ -252,8 +222,8 @@ instance Dech (Pure S.VecStatement) D.ValueDef where
 			-> wrap retIndices vecForCycle
 		S.VecMultiIfStatement retIndices vecMultiIfBranch
 			-> wrap retIndices vecMultiIfBranch
-		S.VecCaseStatement retIndices vecCaseBranch
-			-> wrap retIndices vecCaseBranch
+		S.VecBodyStatement retIndices vecBody
+			-> wrap retIndices vecBody
 		_ -> mzero
 		where wrap retIndices vecPart
 			 = D.ValueDef
@@ -291,7 +261,7 @@ instance Dech S.VecExpression D.Expression where
 		hsExprs <- mapM dech exprs
 		let binary hsOp = case hsExprs of
 			hsExpr1:hsExpr2:hsExprs ->
-				return $ beta (D.Binary hsOp hsExpr1 hsExpr2 : hsExprs)
+				return $ beta (hsOp hsExpr1 hsExpr2 : hsExprs)
 			_ -> mzero
 		let unary hsOp = case hsExprs of
 			hsExpr1:hsExprs ->
@@ -304,12 +274,14 @@ instance Dech S.VecExpression D.Expression where
 			S.CallOperator op -> case op of
 				S.OpNegate -> unary D.Negate
 				S.OpShow -> unary (D.Beta $ D.Access "show")
-				S.OpAdd -> binary "+"
-				S.OpSubtract -> binary "-"
-				S.OpMultiply -> binary "*"
-				S.OpDivide -> binary "/"
-				S.OpMore -> binary ">"
-				S.OpLess -> binary "<"
-				S.OpEquals -> binary "=="
-				S.OpAnd -> binary "&&"
-				S.OpOr -> binary "||"
+				S.OpAdd -> binary (D.Binary "+")
+				S.OpSubtract -> binary (D.Binary "-")
+				S.OpMultiply -> binary (D.Binary "*")
+				S.OpDivide -> binary (D.Binary "/")
+				S.OpMore -> binary (D.Binary ">")
+				S.OpLess -> binary (D.Binary "<")
+				S.OpEquals -> binary (D.Binary "==")
+				S.OpAnd -> binary (D.Binary "&&")
+				S.OpOr -> binary (D.Binary "||")
+				S.OpElem -> binary (D.Binary "`elem`")
+				S.OpRange -> binary D.Range

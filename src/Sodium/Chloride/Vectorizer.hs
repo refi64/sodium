@@ -28,18 +28,17 @@ vectorizeBody closure body = do
 		closure
 	(vecStatements, indices')
 		<- flip runStateT indices
-		$ mapM vectorizeStatement
-			(body ^. bodyStatements)
+		$ mapM vectorizeStatement (body ^. bodyStatements)
+	let isLocal = (`elem` M.keys (body ^.bodyVars))
 	let changed
 		= M.keys
-		$ M.filter id
+		$ M.filterWithKey (\name -> (&&) (not $ isLocal name))
 		$ M.intersectionWith (/=)
 		indices indices'
 	let vecBodyGen results = do
 		vecResults
 			<- flip runReaderT indices'
-			$ mapM vectorizeExpression
-				results
+			$ mapM vectorizeExpression results
 		return $ VecBody
 			(body ^. bodyVars)
 			vecStatements
@@ -81,9 +80,7 @@ vectorizeStatement = \case
 		-- in NameUnique to resolve name conflicts
 		preIndices <- get
 		-- TODO: nullify indices ??
-		let closure
-			= M.insert (forCycle ^. forName) (-1)
-			$ preIndices
+		let closure = M.insert (forCycle ^. forName) (-1) preIndices
 		(vecBodyGen, changed) <- lift $ vectorizeBody closure (forCycle ^. forBody)
 		vecBody <- lift $ vecBodyGen (map Access changed)
 		mapM registerIndexUpdate changed
@@ -102,9 +99,7 @@ vectorizeStatement = \case
 		preIndices <- get
 		let vectorizeLeafGen (expr, body) = do
 			vecExpr <- readerToState $ vectorizeExpression expr
-			(vecBodyGen, changed) <- lift $ vectorizeBody
-				preIndices
-				body
+			(vecBodyGen, changed) <- lift $ vectorizeBody preIndices body
 			return ((vecExpr, vecBodyGen), changed)
 		(vecLeafGens, changedList)
 			<- unzip
@@ -123,32 +118,14 @@ vectorizeStatement = \case
 		postIndices <- get
 		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
 		return $ VecMultiIfStatement retIndices vecMultiIfBranch
-	CaseStatement caseBranch -> do
-		vecExpr <- readerToState $ vectorizeExpression (caseBranch ^. caseExpr)
+	BodyStatement body -> do
 		preIndices <- get
-		let vectorizeLeafGen (exprs, body) = do
-			vecExprs <- readerToState $ mapM vectorizeExpression exprs
-			(vecBodyGen, changed) <- lift $ vectorizeBody
-				preIndices
-				body
-			return ((vecExprs, vecBodyGen), changed)
-		(vecLeafGens, changedList)
-			<-  unzip
-			<$> mapM vectorizeLeafGen (caseBranch ^. caseLeafs )
-		(vecBodyElseGen, changedElse)
-			<- lift $ vectorizeBody preIndices (caseBranch ^. caseElse )
-		let changed = nub $ changedElse ++ concat changedList
-		let accessChanged = map Access changed
-		let genLeaf (exprs, leafGen) = do
-			leafBody <- lift $ leafGen accessChanged
-			return (exprs, leafBody)
-		vecLeafs <- mapM genLeaf vecLeafGens
-		vecBodyElse <- lift $ vecBodyElseGen accessChanged
-		let vecCaseBranch = VecCaseBranch vecExpr vecLeafs vecBodyElse
+		(vecBodyGen, changed) <- lift $ vectorizeBody preIndices body
+		vecBody <- lift $ vecBodyGen (map Access changed)
 		mapM registerIndexUpdate changed
 		postIndices <- get
 		retIndices <- lift $ runReaderT (closedIndices changed) postIndices
-		return $ VecCaseStatement retIndices vecCaseBranch
+		return $ VecBodyStatement retIndices vecBody
 
 vectorizeExpression :: Expression -> ReaderT Indices (Fail String) VecExpression
 vectorizeExpression = \case

@@ -54,7 +54,7 @@ data Statement
 	| Execute ExecuteName [Argument]
 	| ForStatement ForCycle
 	| MultiIfStatement MultiIfBranch
-	| CaseStatement CaseBranch
+	| BodyStatement Body
 	deriving (Show)
 
 data ForCycle
@@ -69,13 +69,6 @@ data MultiIfBranch
 	= MultiIfBranch
 	{ _multiIfLeafs :: [(Expression, Body)]
 	, _multiIfElse  :: Body
-	} deriving (Show)
-
-data CaseBranch
-	= CaseBranch
-	{ _caseExpr :: Expression
-	, _caseLeafs :: [([Expression], Body)]
-	, _caseElse :: Body
 	} deriving (Show)
 
 data Expression
@@ -101,7 +94,7 @@ data VecStatement
 	| VecExecute IndicesList ExecuteName [VecArgument]
 	| VecForStatement IndicesList VecForCycle
 	| VecMultiIfStatement IndicesList VecMultiIfBranch
-	| VecCaseStatement IndicesList VecCaseBranch
+	| VecBodyStatement IndicesList VecBody
 	deriving (Show)
 
 data VecForCycle
@@ -118,13 +111,6 @@ data VecMultiIfBranch
 	= VecMultiIfBranch
 	{ _vecMultiIfLeafs :: [(VecExpression, VecBody)]
 	, _vecMultiIfElse  :: VecBody
-	} deriving (Show)
-
-data VecCaseBranch
-	= VecCaseBranch
-	{ _vecCaseExpr :: VecExpression
-	, _vecCaseLeafs :: [([VecExpression], VecBody)]
-	, _vecCaseElse :: VecBody
 	} deriving (Show)
 
 data VecExpression
@@ -192,7 +178,6 @@ makeLenses ''Func
 makeLenses ''Body
 makeLenses ''ForCycle
 makeLenses ''MultiIfBranch
-makeLenses ''CaseBranch
 
 makeLenses ''VecFunc
 makeLenses ''VecBody

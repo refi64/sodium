@@ -106,20 +106,39 @@ instance Chlor S.Statement D.Statement where
 		S.IfBranch expr bodyThen mBodyElse
 			-> D.MultiIfStatement
 			<$> chlorinateMultiIf expr bodyThen mBodyElse
-		S.CaseBranch expr leafs mBodyElse
-			-> D.CaseStatement <$> do
-				clExpr <- chlor expr
-				let chlorLeaf (exprs, body) = do
-					clExprs <- mapM chlor exprs
-					clBody <- chlor (vb body)
-					return (clExprs, clBody)
-				clLeafs <- mapM chlorLeaf leafs
-				clBodyElse <- case mBodyElse of
-					Just bodyElse ->
-						chlor (vb bodyElse)
-					Nothing ->
-						return $ D.Body M.empty []
-				return $ D.CaseBranch clExpr clLeafs clBodyElse
+		S.CaseBranch expr leafs mBodyElse -> do
+			(clCaseExpr, wrap) <- case expr of
+				S.Access name -> (, id) <$> (D.Access <$> nameHook name)
+				expr -> do
+					clExpr <- chlor expr
+					let clName = D.Name "__CASE'__" -- generate a name?
+					let clType = undefined -- typeof(expr)
+					let wrap statement
+						= D.BodyStatement
+						$ D.Body
+							(M.singleton clName clType)
+							[D.Assign clName clExpr, statement]
+					return (D.Access clName, wrap)
+			let binary op a b = D.Call (D.CallOperator op) [a,b]
+			let instRange = \case
+				S.Binary S.OpRange exprFrom exprTo
+					-> (binary D.OpElem clCaseExpr <$>)
+					 $  binary D.OpRange
+					<$> chlor exprFrom
+					<*> chlor exprTo
+				expr -> binary D.OpEquals clCaseExpr <$> chlor expr
+			let instLeaf (exprs, body)
+				 =  (,)
+				<$> (foldl1 (binary D.OpOr) <$> mapM instRange exprs)
+				<*> chlor (vb body)
+			let instBodyElse = \case
+				Just bodyElse -> chlor (vb bodyElse)
+				Nothing -> return $ D.Body M.empty []
+			wrap
+				<$> D.MultiIfStatement
+				<$> (D.MultiIfBranch
+				<$> mapM instLeaf leafs
+				<*> instBodyElse mBodyElse)
 
 data Argument = Argument S.Expression
 
