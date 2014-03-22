@@ -15,7 +15,7 @@ translate
 	 =  return . render
 	<=< dech
 	<=< return . sub
-	<=< vectorize
+	<=< return . vectorize
 	<=< uncurse
 	<=< chlorinate
 	<=< parse

@@ -11,8 +11,9 @@ data Name
 	deriving (Eq, Ord, Show)
 
 data Program
-	= Program [Func]
-	deriving (Show)
+	= Program
+	{ _programFuncs :: [Func]
+	} deriving (Show)
 
 data VecProgram
 	= VecProgram
@@ -179,6 +180,7 @@ makeLenses ''Func
 makeLenses ''Body
 makeLenses ''ForCycle
 makeLenses ''MultiIfBranch
+makeLenses ''Program
 
 makeLenses ''VecFunc
 makeLenses ''VecBody

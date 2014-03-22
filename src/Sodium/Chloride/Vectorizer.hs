@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Sodium.Chloride.Vectorizer (vectorize) where
 
 import Data.List
@@ -7,46 +8,54 @@ import Control.Monad.State.Lazy
 import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
+import Control.Exception
+import Data.Typeable
 
-vectorize :: Program -> Either String VecProgram
-vectorize (Program funcs) = VecProgram <$> mapM vectorizeFunc funcs
+data VectorizerException
+	= NoAccess Name
+	| UpdateImmutable Name
+	deriving (Show, Typeable)
 
-vectorizeFunc :: Func -> Either String VecFunc
-vectorizeFunc func = do
-	let closure = initIndices 1 (func ^. funcSig . funcParams)
-	(vecBodyGen, _) <- vectorizeBody closure (func ^. funcBody)
-	VecFunc (func ^. funcSig) <$> vecBodyGen (func ^. funcResults)
+instance Exception VectorizerException
 
-vectorizeBody :: Indices -> Body -> (Either String) ([Expression] -> (Either String) VecBody, [Name])
-vectorizeBody closure body = do
-	let isLocal = flip elem $ M.keys (body ^.bodyVars)
-	let indices = initIndices 0 (body ^. bodyVars) `M.union` closure
+vectorize :: Program -> VecProgram
+vectorize
+	= VecProgram
+	. map vectorizeFunc
+	. view programFuncs
+
+vectorizeFunc :: Func -> VecFunc
+vectorizeFunc func = VecFunc (func ^. funcSig) $ vecBodyGen (func ^. funcResults) where
+	closure = initIndices 1 (func ^. funcSig . funcParams)
+	(vecBodyGen, _) = vectorizeBody closure (func ^. funcBody)
+
+vectorizeBody :: Indices -> Body -> ([Expression] -> VecBody, [Name])
+vectorizeBody closure body = (vecBodyGen, changed) where
+	isLocal = flip elem $ M.keys (body ^.bodyVars)
+	indices = initIndices 0 (body ^. bodyVars) `M.union` closure
 	(vecStatements, indices')
-		<- flip runStateT indices
+		= flip runState indices
 		$ mapM vectorizeStatement (body ^. bodyStatements)
-	let changed
+	changed
 		= M.keys
 		$ M.filterWithKey ((&&) . not . isLocal)
 		$ M.intersectionWith (/=)
 		indices indices'
-	let vecBodyGen results
-		 =  VecBody (body ^. bodyVars)
-		<$> return vecStatements
-		<*> flip runReaderT indices' (mapM vectorizeExpression results)
-	return (vecBodyGen, changed)
+	vecBodyGen results
+		= VecBody (body ^. bodyVars) vecStatements
+		$ runReader (mapM vectorizeExpression results) indices'
 
-vectorizeBody' :: Indices -> Body -> Either String (VecBody, [Name])
-vectorizeBody' closure body = do
-	(vecBodyGen, changed) <- vectorizeBody closure body
-	vecBody <- vecBodyGen (map Access changed)
-	return (vecBody, changed)
+vectorizeBody' :: Indices -> Body -> (VecBody, [Name])
+vectorizeBody' closure body = (vecBody, changed) where
+	(vecBodyGen, changed) = vectorizeBody closure body
+	vecBody = vecBodyGen (map Access changed)
 
-vectorizeArgument :: Argument -> ReaderT Indices (Either String) VecArgument
+vectorizeArgument :: Argument -> Reader Indices VecArgument
 vectorizeArgument = \case
 	LValue name -> VecLValue name <$> lookupIndex name
 	RValue expr -> VecRValue <$> vectorizeExpression expr
 
-vectorizeStatement :: Statement -> StateT Indices (Either String) VecStatement
+vectorizeStatement :: Statement -> State Indices VecStatement
 vectorizeStatement = \case
 	Assign name expr
 		 -> flip (uncurry VecAssign)
@@ -72,8 +81,8 @@ vectorizeStatement = \case
 			<*> vectorizeExpression (forCycle ^. forTo)
 		preIndices <- get
 		let closure = M.insert (forCycle ^. forName) (-1) preIndices
-		(vecBody, changed) <- lift $ vectorizeBody' closure (forCycle ^. forBody)
-		argIndices <- lift $ runReaderT (closedIndices changed) preIndices
+		let (vecBody, changed) = vectorizeBody' closure (forCycle ^. forBody)
+		let argIndices = runReader (closedIndices changed) preIndices
 		retIndices <- mapM registerIndexUpdate changed
 		return
 			$ VecForStatement retIndices
@@ -90,24 +99,23 @@ vectorizeStatement = \case
 			$ \(expr, body)
 				 -> over _1 . (,)
 				<$> readerToState (vectorizeExpression expr)
-				<*> lift (vectorizeBody preIndices body)
-		(vecBodyElseGen, changedElse) <- lift
-			$ vectorizeBody preIndices (multiIfBranch ^. multiIfElse)
+				<*> return (vectorizeBody preIndices body)
+		let (vecBodyElseGen, changedElse)
+			= vectorizeBody preIndices (multiIfBranch ^. multiIfElse)
 		let changed = nub $ changedElse ++ concat changedList
 		let accessChanged = map Access changed
-		vecMultiIfBranch <- lift
-			 $  VecMultiIfBranch
-			<$> forM vecLeafGens (_2 $ flip ($) accessChanged)
-			<*> vecBodyElseGen accessChanged
+		let vecMultiIfBranch = VecMultiIfBranch
+			(over _2 ($ accessChanged) `map` vecLeafGens)
+			(vecBodyElseGen accessChanged)
 		retIndices <- mapM registerIndexUpdate changed
 		return $ VecMultiIfStatement retIndices vecMultiIfBranch
 	BodyStatement body -> do
 		preIndices <- get
-		(vecBody, changed) <- lift $ vectorizeBody' preIndices body
+		let (vecBody, changed) = vectorizeBody' preIndices body
 		retIndices <- mapM registerIndexUpdate changed
 		return $ VecBodyStatement retIndices vecBody
 
-vectorizeExpression :: Expression -> ReaderT Indices (Either String) VecExpression
+vectorizeExpression :: Expression -> Reader Indices VecExpression
 vectorizeExpression = \case
 	Primary a -> return (VecPrimary a)
 	Access name -> VecAccess name <$> lookupIndex name
@@ -116,23 +124,21 @@ vectorizeExpression = \case
 readerToState :: (Functor m, Monad m) => ReaderT x m a -> StateT x m a
 readerToState reader = StateT $ \x -> (,x) <$> runReaderT reader x
 
-lookupIndex name = do
-	indices <- ask
-	lift $ maybe
-		(Left $ "Vectorizer could not access index of " ++ show name)
-		Right (M.lookup name indices)
+lookupIndex name
+	 =  maybe (throw $ NoAccess name) id
+	<$> (M.lookup name <$> ask)
+
 registerIndexUpdate name = do
-	let indexUpdate index
-		| index < 0 = Left
-			$ "Vectorizer could not update an immutable value " ++ show name
-		| otherwise = return (succ index)
 	index <- readerToState $ lookupIndex name
-	index' <- lift $ indexUpdate index
+	let index' = indexUpdate index
 	modify $ M.insert name index'
 	return (name, index')
+	where indexUpdate index
+		| index < 0 = throw $ UpdateImmutable name
+		| otherwise = succ index
 
-closedIndices :: [Name] -> ReaderT Indices (Either String) IndicesList
+closedIndices :: [Name] -> Reader Indices IndicesList
 closedIndices = mapM $ \name -> (name,) <$> lookupIndex name
 
 initIndices :: Integer -> Vars -> Indices
-initIndices n  = M.map (const n)
+initIndices n = M.map (const n)
