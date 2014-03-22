@@ -6,19 +6,18 @@ import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Sodium.SubstituteSingle
-import Sodium.Success
 
-sub :: VecProgram -> (Fail String) VecProgram
-sub = vecProgramFuncs (mapM subFunc)
+sub :: VecProgram -> VecProgram
+sub = vecProgramFuncs %~ map subFunc
 
-subFunc :: VecFunc -> (Fail String) VecFunc
-subFunc func = do
+subFunc :: VecFunc -> VecFunc
+subFunc func = maybe func id $ do
 	subBody <- runReaderT
 		(subBody $ func ^. vecFuncBody)
 		(func ^. vecFuncSig . funcParams)
 	return $ vecFuncBody .~ subBody $ func
 
-subBody :: VecBody -> ReaderT Vars (Fail String) VecBody
+subBody :: (Functor m, MonadPlus m) => VecBody -> ReaderT Vars m VecBody
 subBody = bodyEliminateAssign
 
 bodyEliminateAssign body

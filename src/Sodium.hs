@@ -16,7 +16,7 @@ translate = flatten . translate'
 	where translate'
 		 =  return . render
 		<=< dech
-		<=< sub
+		<=< return . sub
 		<=< vectorize
 		<=< uncurse
 		<=< chlorinate
