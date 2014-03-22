@@ -14,7 +14,7 @@ import Sodium.Success (flatten)
 translate :: String -> Either [String] String
 translate = flatten . translate'
 	where translate'
-		 =  render
+		 =  return . render
 		<=< dech
 		<=< sub
 		<=< vectorize

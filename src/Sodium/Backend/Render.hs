@@ -3,14 +3,12 @@ module Sodium.Backend.Render (render) where
 import Data.List (intersperse)
 import qualified Text.PrettyPrint as P
 import Sodium.Backend.Program
-import Sodium.Success
 
 vsep = foldr (P.$+$) P.empty
 
-render :: Program -> (Fail String) String
+render :: Program -> String
 render (Program defs imports exts)
-	= return
-	$ P.render
+	= P.render
 	$ vsep
 	$ [renderExts exts]
 	++ map renderImport imports
