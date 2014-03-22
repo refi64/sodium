@@ -1,7 +1,6 @@
 module Main (main) where
 
 import System.Environment
-import Control.Monad
 import qualified Sodium
 import System.Exit
 
@@ -20,15 +19,6 @@ processFiles filename1 filename2 = do
 		Right dest -> do
 			putStrLn dest
 			writeFile filename2 dest
-		Left msgs -> do
-			putStrLn "Can\'t translate."
-			processFail msgs
+		Left msg -> do
+			putStrLn msg
 			exitWith $ ExitFailure 1
-
-processFail :: [String] -> IO ()
-processFail = \case
-	[] -> putStrLn "Error unknown"
-	[msg] -> putStrLn $ "Error: " ++ msg
-	msgs' -> do
-		putStrLn "Try fixing one of the following errors:"
-		void $ forM msgs' (\msg -> putStrLn $ "\t" ++ msg)

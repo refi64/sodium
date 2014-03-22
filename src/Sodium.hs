@@ -9,17 +9,15 @@ import Sodium.Backend.Render       (render)
 import Sodium.Chloride.Vectorizer  (vectorize)
 import Sodium.Chloride.IOMagic     (uncurse)
 import Sodium.Chloride.Pattern     (sub)
-import Sodium.Success (flatten)
 
-translate :: String -> Either [String] String
-translate = flatten . translate'
-	where translate'
-		 =  return . render
-		<=< dech
-		<=< return . sub
-		<=< vectorize
-		<=< uncurse
-		<=< chlorinate
-		<=< parse
-		<=< return . tokenize
+translate :: String -> Either String String
+translate
+	 =  return . render
+	<=< dech
+	<=< return . sub
+	<=< vectorize
+	<=< uncurse
+	<=< chlorinate
+	<=< parse
+	<=< return . tokenize
 

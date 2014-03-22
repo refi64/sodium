@@ -4,22 +4,17 @@ import Prelude hiding (head)
 import Control.Applicative
 import Control.Monad
 import Data.Maybe
-import Sodium.Tr (trapGuard, head, before, fallback)
-import qualified Sodium.Tr (expect)
+import Sodium.Tr (trapGuard, head, before, fallback, expect)
 import qualified Sodium.Frontend.Token as T
 import Sodium.Frontend.Program
-import Sodium.Success
 
-parse :: [T.Token] -> (Fail String) Program
+parse :: [T.Token] -> Either String Program
 parse = trapGuard programTr isDot where
 	isDot (T.Dot:_) = True
 	isDot _ = False
 
 
 -- Useful combinators
-
--- TODO: annotate
-expect c = Sodium.Tr.expect c
 
 sepr elemTr opTr = tr where
 	tr = elemTr >>= next

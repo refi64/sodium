@@ -4,28 +4,27 @@ import Control.Monad.Reader
 import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
-import Sodium.Success
 
-uncurse :: Program -> (Fail String) Program
+uncurse :: Program -> (Either String) Program
 uncurse (Program funcs) = do
 	uncFuncs <- mapM uncurseFunc funcs
 	return $ Program uncFuncs
 
-uncurseFunc :: Func -> (Fail String) Func
+uncurseFunc :: Func -> (Either String) Func
 uncurseFunc func = do
 	uncBody <- runReaderT
 		(uncurseBody $ func ^. funcBody)
 		(func ^. funcSig . funcParams)
 	return $ funcBody .~ uncBody $ func
 
-uncurseBody :: Body -> ReaderT Vars (Fail String) Body
+uncurseBody :: Body -> ReaderT Vars (Either String) Body
 uncurseBody body
 	= local (M.union $ body ^. bodyVars)
 	$ do
 		uncStatements <- mapM uncurseStatement (body ^. bodyStatements)
 		return $ bodyStatements .~ uncStatements $ body
 
-uncurseStatement :: Statement -> ReaderT Vars (Fail String) Statement
+uncurseStatement :: Statement -> ReaderT Vars (Either String) Statement
 uncurseStatement = \case
 	Execute (ExecuteName (Name "readln")) [LValue name] -> do
 		t <- lookupType name
@@ -59,5 +58,6 @@ uncurseStatement = \case
 
 lookupType name = do
 	vars <- ask
-	lift $ annotate (M.lookup name vars) 0
-		("IOMagic could not access type of " ++ show name)
+	lift $ maybe
+		(Left $ "IOMagic could not access type of " ++ show name)
+		Right (M.lookup name vars)

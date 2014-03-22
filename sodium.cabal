@@ -22,7 +22,6 @@ library
                        Sodium.Chloride.IOMagic
                        Sodium.Chloride.Pattern
                        Sodium.Tr
-                       Sodium.Success
                        Sodium.SubstituteSingle
 
   build-depends:       base >=4.6 && <4.7,

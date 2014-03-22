@@ -7,18 +7,17 @@ import Control.Monad.State.Lazy
 import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
-import Sodium.Success
 
-vectorize :: Program -> (Fail String) VecProgram
+vectorize :: Program -> Either String VecProgram
 vectorize (Program funcs) = VecProgram <$> mapM vectorizeFunc funcs
 
-vectorizeFunc :: Func -> (Fail String) VecFunc
+vectorizeFunc :: Func -> Either String VecFunc
 vectorizeFunc func = do
 	let closure = initIndices 1 (func ^. funcSig . funcParams)
 	(vecBodyGen, _) <- vectorizeBody closure (func ^. funcBody)
 	VecFunc (func ^. funcSig) <$> vecBodyGen (func ^. funcResults)
 
-vectorizeBody :: Indices -> Body -> (Fail String) ([Expression] -> (Fail String) VecBody, [Name])
+vectorizeBody :: Indices -> Body -> (Either String) ([Expression] -> (Either String) VecBody, [Name])
 vectorizeBody closure body = do
 	let isLocal = flip elem $ M.keys (body ^.bodyVars)
 	let indices = initIndices 0 (body ^. bodyVars) `M.union` closure
@@ -36,18 +35,18 @@ vectorizeBody closure body = do
 		<*> flip runReaderT indices' (mapM vectorizeExpression results)
 	return (vecBodyGen, changed)
 
-vectorizeBody' :: Indices -> Body -> (Fail String) (VecBody, [Name])
+vectorizeBody' :: Indices -> Body -> Either String (VecBody, [Name])
 vectorizeBody' closure body = do
 	(vecBodyGen, changed) <- vectorizeBody closure body
 	vecBody <- vecBodyGen (map Access changed)
 	return (vecBody, changed)
 
-vectorizeArgument :: Argument -> ReaderT Indices (Fail String) VecArgument
+vectorizeArgument :: Argument -> ReaderT Indices (Either String) VecArgument
 vectorizeArgument = \case
 	LValue name -> VecLValue name <$> lookupIndex name
 	RValue expr -> VecRValue <$> vectorizeExpression expr
 
-vectorizeStatement :: Statement -> StateT Indices (Fail String) VecStatement
+vectorizeStatement :: Statement -> StateT Indices (Either String) VecStatement
 vectorizeStatement = \case
 	Assign name expr
 		 -> flip (uncurry VecAssign)
@@ -108,7 +107,7 @@ vectorizeStatement = \case
 		retIndices <- mapM registerIndexUpdate changed
 		return $ VecBodyStatement retIndices vecBody
 
-vectorizeExpression :: Expression -> ReaderT Indices (Fail String) VecExpression
+vectorizeExpression :: Expression -> ReaderT Indices (Either String) VecExpression
 vectorizeExpression = \case
 	Primary a -> return (VecPrimary a)
 	Access name -> VecAccess name <$> lookupIndex name
@@ -119,20 +118,20 @@ readerToState reader = StateT $ \x -> (,x) <$> runReaderT reader x
 
 lookupIndex name = do
 	indices <- ask
-	lift $ annotate (M.lookup name indices) 0
-		("Vectorizer could not access index of " ++ show name)
-
+	lift $ maybe
+		(Left $ "Vectorizer could not access index of " ++ show name)
+		Right (M.lookup name indices)
 registerIndexUpdate name = do
 	let indexUpdate index
-		| index < 0 = annotate Nothing 0
-			("Vectorizer could not update an immutable value " ++ show name)
+		| index < 0 = Left
+			$ "Vectorizer could not update an immutable value " ++ show name
 		| otherwise = return (succ index)
 	index <- readerToState $ lookupIndex name
 	index' <- lift $ indexUpdate index
 	modify $ M.insert name index'
 	return (name, index')
 
-closedIndices :: [Name] -> ReaderT Indices (Fail String) IndicesList
+closedIndices :: [Name] -> ReaderT Indices (Either String) IndicesList
 closedIndices = mapM $ \name -> (name,) <$> lookupIndex name
 
 initIndices :: Integer -> Vars -> Indices

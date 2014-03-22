@@ -9,10 +9,9 @@ import qualified Data.Map as M
 -- S for Src, D for Dest
 import qualified Sodium.Chloride.Program as S
 import qualified  Sodium.Backend.Program as D
-import Sodium.Success
 
 class Dech s d | s -> d where
-	dech :: s -> (Fail String) d
+	dech :: s -> (Either String) d
 
 instance Dech S.VecProgram D.Program where
 	dech (S.VecProgram funcs) = do

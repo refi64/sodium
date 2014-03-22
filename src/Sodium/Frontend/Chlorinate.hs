@@ -10,15 +10,14 @@ import Control.Lens
 import qualified Sodium.Frontend.Program as S
 import qualified Sodium.Chloride.Program as D
 import qualified Data.Map as M
-import Sodium.Success
 
-chlorinate :: S.Program -> (Fail String) D.Program
+chlorinate :: S.Program -> Either String D.Program
 chlorinate = flip runReaderT [] . chlor
 
 type ChlorEnv = [S.Name]
 
 class Chlor s d | s -> d where
-	chlor :: s -> ReaderT ChlorEnv (Fail String) d
+	chlor :: s -> ReaderT ChlorEnv (Either String) d
 
 instance Chlor S.Program D.Program where
 	chlor (S.Program funcs vars body) = do
