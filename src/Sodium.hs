@@ -21,5 +21,5 @@ translate = flatten . translate'
 		<=< uncurse
 		<=< chlorinate
 		<=< parse
-		<=< tokenize
+		<=< return . tokenize
 

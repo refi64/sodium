@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Sodium.Frontend.Tokenizer (tokenize) where
 
 import Prelude hiding (head)
@@ -5,20 +6,27 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.State.Lazy
 import qualified Data.Char as C
-import Sodium.Tr (trapGuard, head, fallback)
-import qualified Sodium.Tr (expect)
+import Sodium.Tr (head, fallback, expect)
 import Sodium.Frontend.Token
-import Sodium.Success
+import Control.Exception
+import Data.Typeable
 
-tokenize :: String -> (Fail String) [Token]
-tokenize = trapGuard
-	(many $ many ignored *> token)
-	(all C.isSpace)
+data TokenizerException
+	= TokenizerException String -- Position?
+	deriving (Show, Typeable)
 
--- TODO: annotate
-expect c = Sodium.Tr.expect c
+instance Exception TokenizerException
 
-token :: StateT String (Fail String) Token
+tokenize :: String -> [Token]
+tokenize [] = []
+tokenize cs = case runStateT token' cs of
+	Nothing -> throw (TokenizerException cs)
+	Just (f, cs) -> f (tokenize cs)
+
+token' :: StateT String Maybe ([Token] -> [Token])
+token' = ((:) <$> token) <|> (id <$ ignored)
+
+token :: StateT String Maybe Token
 token = msum
 	[ LParen <$ expect '('
 	, RParen <$ expect ')'
@@ -40,7 +48,7 @@ token = msum
 	, quote
 	]
 
-ignored = void whitespace <|> comment
+ignored = void (some whitespace) <|> comment
 
 name = mangle <$> some (letter <|> expect '_') where
 	mangle cs = maybe (Name cs) id (lookup cs keywords)
