@@ -5,17 +5,16 @@ import Control.Monad.Reader
 import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
+import Sodium.SubstituteSingle
 import Sodium.Success
 
 sub :: VecProgram -> (Fail String) VecProgram
-sub (VecProgram funcs) = do
-	subFuncs <- mapM subFunc funcs
-	return $ VecProgram subFuncs
+sub = vecProgramFuncs (mapM subFunc)
 
 subFunc :: VecFunc -> (Fail String) VecFunc
 subFunc func = do
 	subBody <- runReaderT
-		(subBody (func ^. vecFuncBody))
+		(subBody $ func ^. vecFuncBody)
 		(func ^. vecFuncSig . funcParams)
 	return $ vecFuncBody .~ subBody $ func
 
@@ -24,17 +23,16 @@ subBody = bodyEliminateAssign
 
 bodyEliminateAssign body
 	= local (M.union $ body ^. vecBodyVars)
-	$ do
-		(subResults, subStatements) <- eliminateAssign
-			(body ^. vecBodyResults)
-			(body ^. vecBodyStatements)
-		return
-			$ vecBodyStatements .~ subStatements
-			$ vecBodyResults .~ subResults
-			$ body
+	$ update body <$> eliminateAssign
+		(body ^. vecBodyResults)
+		(body ^. vecBodyStatements)
+	where update body (subResults, subStatements)
+		= vecBodyResults .~ subResults
+		$ vecBodyStatements .~ subStatements
+		$ body
 
 eliminateAssign
-	:: MonadPlus m
+	:: (Functor m, MonadPlus m)
 	=> [VecExpression]
 	-> [VecStatement]
 	-> ReaderT Vars m ([VecExpression], [VecStatement])
@@ -42,45 +40,22 @@ eliminateAssign bodyResults [] = return (bodyResults, [])
 eliminateAssign bodyResults (statement:statements) = msum
 	[ case statement of
 		VecAssign name i expr -> do
-			let subSingle
-				 =  flip runReaderT ((name, i), expr)
-				 $  (,)
-				<$> mapM substituteSingleAccess bodyResults
-				<*> mapM substituteSingleAccess statements
-			case subSingle of
+			let subSingle = liftA2 (,)
+				(mapM substituteSingleAccess bodyResults)
+				(mapM substituteSingleAccess statements)
+			case runReaderT subSingle ((name, i), expr) of
 				SubstituteSingle subPair -> uncurry eliminateAssign subPair
 				SubstituteNone   subPair -> uncurry eliminateAssign subPair
 				SubstituteAmbiguous -> mzero
 		_ -> mzero
-	, do
-		(subResults, subStatements) <- eliminateAssign bodyResults statements
-		return (subResults, statement:subStatements)
+	, over _2 (statement:) <$> eliminateAssign bodyResults statements
 	]
 
 
-data SubstituteSingle a
-	= SubstituteSingle a
-	| SubstituteNone a
-	| SubstituteAmbiguous
-
-instance Functor SubstituteSingle where
-	fmap = liftM
-
-instance Applicative SubstituteSingle where
-	pure = return
-	(<*>) = ap
-
-instance Monad SubstituteSingle where
-	return = SubstituteNone
-	SubstituteAmbiguous >>= _ = SubstituteAmbiguous
-	SubstituteNone   a >>= f = f a
-	SubstituteSingle a >>= f = case f a of
-		SubstituteNone b -> SubstituteSingle b
-		_ -> SubstituteAmbiguous
+type SubstituteAccessEnv = ((Name, Integer), VecExpression)
 
 class SubstituteSingleAccess a where
-	substituteSingleAccess :: a -> ReaderT
-		((Name, Integer), VecExpression) SubstituteSingle a
+	substituteSingleAccess :: a -> ReaderT SubstituteAccessEnv SubstituteSingle a
 
 instance SubstituteSingleAccess VecExpression where
 	substituteSingleAccess = \case
@@ -123,31 +98,29 @@ instance SubstituteSingleAccess VecStatement where
 		_ -> lift $ SubstituteAmbiguous
 
 instance SubstituteSingleAccess VecForCycle where
-	substituteSingleAccess (VecForCycle argIndices argExprs name exprFrom exprTo body) = do
-		subExprFrom <- substituteSingleAccess exprFrom
-		subExprTo   <- substituteSingleAccess exprTo
-		(subArgExprs, subBody) <- ask >>= k . runReaderT
-			(mapM substituteSingleAccess argExprs)
-		return $ VecForCycle
-			argIndices
-				subArgExprs
-				name
-				subExprFrom
-				subExprTo
-				subBody
-		where k = \case
-			SubstituteAmbiguous -> lift $ SubstituteAmbiguous
-			SubstituteNone subArgExprs
-				 -> (subArgExprs,)
-				<$> substituteSingleAccess body
-			SubstituteSingle subArgExprs
-				-- body untouched due to scoping
-				 -> return (subArgExprs, body)
+	substituteSingleAccess
+		 =  vecForFrom substituteSingleAccess
+		>=> vecForTo   substituteSingleAccess
+		>=> vecForArgExprs (mapM substituteSingleAccess)
+		>=> liftA2 (>>=)
+			(shadowedBy . map fst . view vecForArgIndices)
+			(flip subBody)
+		where subBody shadowed
+			| shadowed  = return
+			| otherwise = vecForBody substituteSingleAccess
 
 instance SubstituteSingleAccess VecBody where
-	substituteSingleAccess (VecBody vars statements exprs)
-		-- not accounting for scoping
-		-- TODO: check if the variable is shadowed
-		 =  VecBody vars
-		<$> mapM substituteSingleAccess statements
-		<*> mapM substituteSingleAccess exprs
+	substituteSingleAccess
+		= liftA2 (>>=)
+			(shadowedBy . M.keys . view vecBodyVars)
+			(flip subBody)
+		where subBody shadowed
+			| shadowed = return
+			| otherwise
+				 =  vecBodyStatements (mapM substituteSingleAccess)
+				>=> vecBodyResults (mapM substituteSingleAccess)
+
+shadowedBy :: Monad m => [Name] -> ReaderT SubstituteAccessEnv m Bool
+shadowedBy names = do
+	(name, _) <- ask
+	return $ fst name `elem` names

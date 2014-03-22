@@ -15,8 +15,9 @@ data Program
 	deriving (Show)
 
 data VecProgram
-	= VecProgram [VecFunc]
-	deriving (Show)
+	= VecProgram
+	{ _vecProgramFuncs :: [VecFunc]
+	} deriving (Show)
 
 data FuncSig
 	= FuncSig
@@ -181,3 +182,5 @@ makeLenses ''MultiIfBranch
 
 makeLenses ''VecFunc
 makeLenses ''VecBody
+makeLenses ''VecForCycle
+makeLenses ''VecProgram

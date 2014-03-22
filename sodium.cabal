@@ -23,6 +23,7 @@ library
                        Sodium.Chloride.Pattern
                        Sodium.Tr
                        Sodium.Success
+                       Sodium.SubstituteSingle
 
   build-depends:       base >=4.6 && <4.7,
                        mtl >=2.1 && <2.2,
