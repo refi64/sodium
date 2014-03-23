@@ -2,7 +2,6 @@
  
 module Sodium.Frontend.Chlorinate (chlorinate) where
 
-import Control.Monad
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Lens
@@ -11,13 +10,13 @@ import qualified Sodium.Frontend.Program as S
 import qualified Sodium.Chloride.Program as D
 import qualified Data.Map as M
 
-chlorinate :: S.Program -> Either String D.Program
-chlorinate = flip runReaderT [] . chlor
+chlorinate :: S.Program -> D.Program
+chlorinate = flip runReader [] . chlor
 
 type ChlorEnv = [S.Name]
 
 class Chlor s d | s -> d where
-	chlor :: s -> ReaderT ChlorEnv (Either String) d
+	chlor :: s -> Reader ChlorEnv d
 
 instance Chlor S.Program D.Program where
 	chlor (S.Program funcs vars body) = do
@@ -75,7 +74,7 @@ instance Chlor S.PasType D.ClType where
 		S.PasReal    -> return D.ClDouble
 		S.PasBoolean -> return D.ClBoolean
 		S.PasString  -> return D.ClString
-		S.PasType cs -> mzero
+		S.PasType cs -> error "Custom types are not implemented"
 
 chlorinateMultiIf expr bodyThen mBodyElse
 	 =  over D.multiIfLeafs . (:)

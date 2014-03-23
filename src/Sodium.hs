@@ -17,7 +17,7 @@ translate
 	<=< return . sub
 	<=< return . vectorize
 	<=< uncurse
-	<=< chlorinate
+	<=< return . chlorinate
 	<=< return . parse
 	<=< return . tokenize
 
