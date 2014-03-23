@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Sodium.Frontend.Parser (parse) where
 
 import Prelude hiding (head)
@@ -7,11 +8,22 @@ import Data.Maybe
 import Sodium.Tr (trapGuard, head, before, fallback, expect)
 import qualified Sodium.Frontend.Token as T
 import Sodium.Frontend.Program
+import Control.Exception
+import Data.Typeable
 
-parse :: [T.Token] -> Either String Program
-parse = trapGuard programTr isDot where
-	isDot (T.Dot:_) = True
-	isDot _ = False
+data ParserException
+	= ParserException
+	deriving (Show, Typeable)
+
+instance Exception ParserException
+
+parse :: [T.Token] -> Program
+parse
+	= maybe (throw ParserException) id
+	. trapGuard programTr isDot
+	where
+		isDot (T.Dot:_) = True
+		isDot _ = False
 
 
 -- Useful combinators

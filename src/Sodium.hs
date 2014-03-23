@@ -18,6 +18,6 @@ translate
 	<=< return . vectorize
 	<=< uncurse
 	<=< chlorinate
-	<=< parse
+	<=< return . parse
 	<=< return . tokenize
 
