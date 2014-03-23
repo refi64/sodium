@@ -16,7 +16,7 @@ translate
 	<=< dech
 	<=< return . sub
 	<=< return . vectorize
-	<=< uncurse
+	<=< return . uncurse
 	<=< return . chlorinate
 	<=< return . parse
 	<=< return . tokenize

@@ -5,8 +5,8 @@ import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 
-uncurse :: Program -> (Either String) Program
-uncurse (Program funcs) = do
+uncurse :: Program -> Program
+uncurse (Program funcs) = either error id $ do
 	uncFuncs <- mapM uncurseFunc funcs
 	return $ Program uncFuncs
 
