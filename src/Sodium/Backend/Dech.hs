@@ -1,6 +1,5 @@
-{-# LANGUAGE FlexibleInstances #-}
-
-module Sodium.Backend.Dech (Dech(..)) where
+{-# LANGUAGE FlexibleInstances, DeriveDataTypeable #-}
+module Sodium.Backend.Dech (dechlor) where
 
 import Data.List (genericReplicate)
 import Control.Monad
@@ -9,9 +8,20 @@ import qualified Data.Map as M
 -- S for Src, D for Dest
 import qualified Sodium.Chloride.Program as S
 import qualified  Sodium.Backend.Program as D
+import Control.Exception
+import Data.Typeable
+
+data DechlorException
+	= DechlorException
+	deriving (Show, Typeable)
+
+instance Exception DechlorException
+
+dechlor :: S.VecProgram -> D.Program
+dechlor = maybe (throw DechlorException) id . dech
 
 class Dech s d | s -> d where
-	dech :: s -> (Either String) d
+	dech :: s -> Maybe d
 
 instance Dech S.VecProgram D.Program where
 	dech (S.VecProgram funcs) = do
