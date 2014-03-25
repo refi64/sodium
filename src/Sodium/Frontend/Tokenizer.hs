@@ -1,52 +1,45 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module Sodium.Frontend.Tokenizer (tokenize) where
 
 import Prelude hiding (head)
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Writer
 import Control.Monad.State.Lazy
 import qualified Data.Char as C
 import Sodium.Tr (head, fallback, expect)
 import Sodium.Frontend.Token
-import Control.Exception
-import Data.Typeable
 
-data TokenizerException
-	= TokenizerException String -- Position?
-	deriving (Show, Typeable)
+tokenize :: String -> (String, [Token])
+tokenize = runWriter . tokenizer
 
-instance Exception TokenizerException
+tokenizer :: String -> Writer [Token] String
+tokenizer cs
+	= maybe (return cs) (uncurry k) (runStateT token' cs)
+	where k x cs = tell x >> tokenizer cs
 
-tokenize :: String -> [Token]
-tokenize [] = []
-tokenize cs = case runStateT token' cs of
-	Nothing -> throw (TokenizerException cs)
-	Just (f, cs) -> f (tokenize cs)
-
-token' :: StateT String Maybe ([Token] -> [Token])
-token' = ((:) <$> token) <|> (id <$ ignored)
+token' :: Alternative f => StateT String Maybe (f Token)
+token' = (pure <$> token) <|> (empty <$ ignored)
 
 token :: StateT String Maybe Token
-token = msum
-	[ LParen <$ expect '('
-	, RParen <$ expect ')'
-	, LSqBrace <$ expect '['
-	, RSqBrace <$ expect ']'
-	, Plus  <$ expect '+'
-	, Minus <$ expect '-'
-	, Asterisk <$ expect '*'
-	, Slash <$ expect '/'
-	, Comma <$ expect ','
-	, Semicolon <$ expect ';'
-	, EqSign <$ expect '='
-	, Suck <$ expect '<'
-	, Blow <$ expect '>'
-	, expect '.' *> fallback Dot (DoubleDot <$ expect '.')
-	, expect ':' *> fallback Colon (Assign <$ expect '=')
-	, number
-	, name
-	, quote
-	]
+token
+	 =  LParen <$ expect '('
+	<|> RParen <$ expect ')'
+	<|> LSqBrace <$ expect '['
+	<|> RSqBrace <$ expect ']'
+	<|> Plus  <$ expect '+'
+	<|> Minus <$ expect '-'
+	<|> Asterisk <$ expect '*'
+	<|> Slash <$ expect '/'
+	<|> Comma <$ expect ','
+	<|> Semicolon <$ expect ';'
+	<|> EqSign <$ expect '='
+	<|> Suck <$ expect '<'
+	<|> Blow <$ expect '>'
+	<|> expect '.' *> fallback Dot (DoubleDot <$ expect '.')
+	<|> expect ':' *> fallback Colon (Assign <$ expect '=')
+	<|> number
+	<|> name
+	<|> quote
 
 ignored = void (some whitespace) <|> comment
 
