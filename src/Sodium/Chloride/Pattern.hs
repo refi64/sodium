@@ -46,6 +46,11 @@ eliminateAssign bodyResults (statement:statements) = msum
 				SubstituteSingle subPair -> uncurry eliminateAssign subPair
 				SubstituteNone   subPair -> uncurry eliminateAssign subPair
 				SubstituteAmbiguous -> mzero
+		VecForStatement indices forCycle -> do
+			subBody <- bodyEliminateAssign (forCycle ^. vecForBody)
+			let statement = VecForStatement indices
+				(vecForBody .~ subBody $ forCycle)
+			over _2 (statement:) <$> eliminateAssign bodyResults statements
 		_ -> mzero
 	, over _2 (statement:) <$> eliminateAssign bodyResults statements
 	]
@@ -98,8 +103,7 @@ instance SubstituteSingleAccess VecStatement where
 
 instance SubstituteSingleAccess VecForCycle where
 	substituteSingleAccess
-		 =  vecForFrom substituteSingleAccess
-		>=> vecForTo   substituteSingleAccess
+		 =  vecForRange substituteSingleAccess
 		>=> vecForArgExprs (mapM substituteSingleAccess)
 		>=> liftA2 (>>=)
 			(shadowedBy . map fst . view vecForArgIndices)

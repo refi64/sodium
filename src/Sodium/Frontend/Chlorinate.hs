@@ -87,6 +87,8 @@ chlorinateMultiIf expr bodyThen mBodyElse
 				-> chlorinateMultiIf expr bodyThen mBodyElse
 			body -> D.MultiIfBranch [] <$> chlor (vb body)
 
+binary op a b = D.Call (D.CallOperator op) [a,b]
+
 instance Chlor S.Statement D.Statement where
 	chlor = \case
 		S.Assign name expr -> D.Assign <$> nameHook name <*> chlor expr
@@ -98,8 +100,7 @@ instance Chlor S.Statement D.Statement where
 			-> (D.ForStatement <$>)
 			 $  D.ForCycle
 			<$> nameHook name
-			<*> chlor fromExpr
-			<*> chlor toExpr
+			<*> (binary D.OpRange <$> chlor fromExpr <*> chlor toExpr)
 			<*> chlor (vb body)
 		S.IfBranch expr bodyThen mBodyElse
 			-> D.MultiIfStatement
@@ -117,13 +118,10 @@ instance Chlor S.Statement D.Statement where
 							(M.singleton clName clType)
 							[D.Assign clName clExpr, statement]
 					return (D.Access clName, wrap)
-			let binary op a b = D.Call (D.CallOperator op) [a,b]
 			let instRange = \case
 				S.Binary S.OpRange exprFrom exprTo
-					-> (binary D.OpElem clCaseExpr <$>)
-					 $  binary D.OpRange
-					<$> chlor exprFrom
-					<*> chlor exprTo
+					 -> (binary D.OpElem clCaseExpr)
+					<$> (binary D.OpRange <$> chlor exprFrom <*> chlor exprTo)
 				expr -> binary D.OpEquals clCaseExpr <$> chlor expr
 			let instLeaf (exprs, body)
 				 =  (,)
@@ -167,10 +165,7 @@ instance Chlor S.Expression D.Expression where
 		S.Quote cs -> return $ D.Primary (D.Quote cs)
 		S.BTrue  -> return $ D.Primary D.BTrue
 		S.BFalse -> return $ D.Primary D.BFalse
-		S.Binary op x y
-			 -> D.Call
-			<$> (D.CallOperator <$> chlor op)
-			<*> mapM chlor [x, y]
+		S.Binary op x y -> binary <$> chlor op <*> chlor x <*> chlor y
 		S.Unary op x -> case op of
 			S.UOpPlus -> chlor x
 			S.UOpNegate

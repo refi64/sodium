@@ -75,10 +75,7 @@ vectorizeStatement = \case
 			_ -> return []
 		return $ VecExecute retIndices name vecArgs
 	ForStatement forCycle -> do
-		(vecFrom, vecTo) <- readerToState
-			 $  (,)
-			<$> vectorizeExpression (forCycle ^. forFrom)
-			<*> vectorizeExpression (forCycle ^. forTo)
+		vecRange <- readerToState $ vectorizeExpression (forCycle ^. forRange)
 		preIndices <- get
 		let closure = M.insert (forCycle ^. forName) (-1) preIndices
 		let (vecBody, changed) = vectorizeBody' closure (forCycle ^. forBody)
@@ -90,7 +87,7 @@ vectorizeStatement = \case
 				argIndices
 				(uncurry VecAccess `map` argIndices)
 				(forCycle ^. forName)
-				vecFrom vecTo
+				vecRange
 				vecBody
 	MultiIfStatement multiIfBranch -> do
 		preIndices <- get

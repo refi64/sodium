@@ -91,8 +91,8 @@ instance Dech S.VecBody D.Expression where
 		return $ D.DoExpression (hsStatements ++ [hsStatement])
 
 instance Dech S.VecForCycle D.Expression where
-	dech (S.VecForCycle argIndices argExprs name exprFrom exprTo clBody) = do
-		hsRange <- dech $ Range exprFrom exprTo
+	dech (S.VecForCycle argIndices argExprs name exprRange clBody) = do
+		hsRange <- dech exprRange
 		hsArgExpr <- D.Tuple <$> mapM dech argExprs
 		hsFoldLambda <- dech (FoldLambda argIndices name) <*> dech clBody
 		return $ beta
@@ -157,14 +157,6 @@ instance Dech S.VecFunc D.ValueDef where
 		<$> dech (Pure clBody)
 		where paramNames = map transformName (M.keys params)
 
-data Range = Range S.VecExpression S.VecExpression
-
-instance Dech Range D.Expression where
-	dech (Range exprFrom exprTo)
-		 =  D.Range
-		<$> dech exprFrom
-		<*> dech exprTo
-
 data FoldLambda = FoldLambda S.IndicesList S.Name
 
 instance Dech FoldLambda (D.Expression -> D.Expression) where
@@ -213,8 +205,8 @@ instance Dech (Pure S.VecMultiIfBranch) D.Expression where
 		return $ foldr ($) hsBodyElse leafGens
 
 instance Dech (Pure S.VecForCycle) D.Expression where
-	dech (Pure (S.VecForCycle argIndices argExprs name exprFrom exprTo clBody)) = do
-		hsRange <- dech $ Range exprFrom exprTo
+	dech (Pure (S.VecForCycle argIndices argExprs name exprRange clBody)) = do
+		hsRange <- dech exprRange
 		hsArgExpr <- D.Tuple <$> mapM dech argExprs
 		hsFoldLambda
 			<-  dech (FoldLambda argIndices name)

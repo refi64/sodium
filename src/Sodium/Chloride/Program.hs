@@ -62,8 +62,7 @@ data Statement
 data ForCycle
 	= ForCycle
 	{ _forName :: Name
-	, _forFrom :: Expression
-	, _forTo :: Expression
+	, _forRange :: Expression
 	, _forBody :: Body
 	} deriving (Show)
 
@@ -104,8 +103,7 @@ data VecForCycle
 	{ _vecForArgIndices :: IndicesList
 	, _vecForArgExprs :: [VecExpression]
 	, _vecForName :: Name
-	, _vecForFrom :: VecExpression
-	, _vecForTo :: VecExpression
+	, _vecForRange :: VecExpression
 	, _vecForBody :: VecBody
 	} deriving (Show)
 
