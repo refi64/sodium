@@ -53,22 +53,15 @@ transformName = \case
 		, "undefined"
 		]
 
-data Name = Name S.Name Integer
+data Name = Name S.Name S.Index
 	deriving (Eq)
 
 instance Dech Name D.Name where
-	dech (Name name i)
-		| i < 0
-			= return
-			$ "const'"
-				++ genericReplicate (pred (-i)) '\''
-				++ transformName name
-		| i > 0
-			= return
-			$ transformName name
-				++ genericReplicate (pred i) '\''
-		| otherwise
-			= return "undefined"
+	dech (Name name i) = case i of
+		S.Index n -> return
+			$ transformName name ++ genericReplicate n '\''
+		S.Immutable -> return $ "const'" ++ transformName name
+		S.Uninitialized -> return "undefined"
 
 instance Dech S.ClType D.HsType where
 	dech = return . \case
@@ -163,7 +156,7 @@ data FoldLambda = FoldLambda S.IndicesList S.Name
 instance Dech FoldLambda (D.Expression -> D.Expression) where
 	dech (FoldLambda indices name) = do
 		hsNames <- dech (IndicesList indices)
-		hsName <- dech (Name name (-1))
+		hsName <- dech (Name name S.Immutable)
 		return $ D.Lambda [D.PatTuple hsNames, D.PatTuple [hsName]]
 
 instance Dech (Pure S.VecBody) D.Expression where

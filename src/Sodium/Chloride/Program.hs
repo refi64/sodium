@@ -86,7 +86,7 @@ data VecBody
 	} deriving (Show)
 
 data VecArgument
-	= VecLValue Name Integer
+	= VecLValue Name Index
 	| VecRValue VecExpression
 	deriving (Show)
 
@@ -114,7 +114,7 @@ data VecMultiIfBranch
 	} deriving (Show)
 
 data VecExpression
-	= VecAccess Name Integer
+	= VecAccess Name Index
 	| VecFold CallName [VecExpression] VecExpression
 	| VecCall CallName [VecExpression]
 	| VecPrimary Literal
@@ -165,14 +165,20 @@ data ClType
 	| ClVoid
 	deriving (Eq, Show)
 
+data Index
+	= Index Integer
+	| Immutable
+	| Uninitialized
+	deriving (Eq, Show)
+
 type Vars
 	= M.Map Name ClType
 
 type Indices
-	= M.Map Name Integer
+	= M.Map Name Index
 
 type IndicesList
-	= [(Name, Integer)]
+	= [(Name, Index)]
 
 makeLenses ''FuncSig
 makeLenses ''Func

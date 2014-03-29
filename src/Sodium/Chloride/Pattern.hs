@@ -2,7 +2,7 @@ module Sodium.Chloride.Pattern (sub) where
 
 import Control.Applicative
 import Control.Monad.Reader
-import Control.Lens
+import Control.Lens hiding (Index)
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Sodium.SubstituteSingle
@@ -56,7 +56,7 @@ eliminateAssign bodyResults (statement:statements) = msum
 	]
 
 
-type SubstituteAccessEnv = ((Name, Integer), VecExpression)
+type SubstituteAccessEnv = ((Name, Index), VecExpression)
 
 class SubstituteSingleAccess a where
 	substituteSingleAccess :: a -> ReaderT SubstituteAccessEnv SubstituteSingle a
@@ -148,7 +148,7 @@ statementMatchFold statement = msum
 
 forCycleMatchFold
 	(VecForCycle [(name1, j)] argExprs name2 range (VecBody vars [] [VecCall op args]))
-	| M.null vars && args == [VecAccess name1 j, VecAccess name2 (-1)]
+	| M.null vars && args == [VecAccess name1 j, VecAccess name2 Immutable]
 	= return (foldMatch op argExprs range)
 forCycleMatchFold _ = mzero
 

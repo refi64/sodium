@@ -5,7 +5,7 @@ import Data.List
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
-import Control.Lens
+import Control.Lens hiding (Index)
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 import Control.Exception
@@ -26,13 +26,13 @@ vectorize
 
 vectorizeFunc :: Func -> VecFunc
 vectorizeFunc func = VecFunc (func ^. funcSig) $ vecBodyGen (func ^. funcResults) where
-	closure = initIndices 1 (func ^. funcSig . funcParams)
+	closure = initIndices (Index 0) (func ^. funcSig . funcParams)
 	(vecBodyGen, _) = vectorizeBody closure (func ^. funcBody)
 
 vectorizeBody :: Indices -> Body -> ([Expression] -> VecBody, [Name])
 vectorizeBody closure body = (vecBodyGen, changed) where
 	isLocal = flip elem $ M.keys (body ^.bodyVars)
-	indices = initIndices 0 (body ^. bodyVars) `M.union` closure
+	indices = initIndices Uninitialized (body ^. bodyVars) `M.union` closure
 	(vecStatements, indices')
 		= flip runState indices
 		$ mapM vectorizeStatement (body ^. bodyStatements)
@@ -77,7 +77,7 @@ vectorizeStatement = \case
 	ForStatement forCycle -> do
 		vecRange <- readerToState $ vectorizeExpression (forCycle ^. forRange)
 		preIndices <- get
-		let closure = M.insert (forCycle ^. forName) (-1) preIndices
+		let closure = M.insert (forCycle ^. forName) Immutable preIndices
 		let (vecBody, changed) = vectorizeBody' closure (forCycle ^. forBody)
 		let argIndices = runReader (closedIndices changed) preIndices
 		retIndices <- mapM registerIndexUpdate changed
@@ -130,12 +130,13 @@ registerIndexUpdate name = do
 	let index' = indexUpdate index
 	modify $ M.insert name index'
 	return (name, index')
-	where indexUpdate index
-		| index < 0 = throw $ UpdateImmutable name
-		| otherwise = succ index
+	where indexUpdate = \case
+		Index n -> Index (succ n)
+		Uninitialized -> Index 0
+		Immutable -> throw $ UpdateImmutable name
 
 closedIndices :: [Name] -> Reader Indices IndicesList
 closedIndices = mapM $ \name -> (name,) <$> lookupIndex name
 
-initIndices :: Integer -> Vars -> Indices
+initIndices :: Index -> Vars -> Indices
 initIndices n = M.map (const n)
