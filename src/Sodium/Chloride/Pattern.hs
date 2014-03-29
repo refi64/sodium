@@ -18,7 +18,7 @@ subFunc func = maybe func id $ do
 	return $ vecFuncBody .~ subBody $ func
 
 subBody :: (Functor m, MonadPlus m) => VecBody -> ReaderT Vars m VecBody
-subBody = bodyEliminateAssign
+subBody = bodyEliminateAssign <=< bodyMatchFold <=< bodyEliminateAssign
 
 bodyEliminateAssign body
 	= local (M.union $ body ^. vecBodyVars)
@@ -38,11 +38,11 @@ eliminateAssign
 eliminateAssign bodyResults [] = return (bodyResults, [])
 eliminateAssign bodyResults (statement:statements) = msum
 	[ case statement of
-		VecAssign name i expr -> do
+		VecAssign [name] expr -> do
 			let subSingle = liftA2 (,)
 				(mapM substituteSingleAccess bodyResults)
 				(mapM substituteSingleAccess statements)
-			case runReaderT subSingle ((name, i), expr) of
+			case runReaderT subSingle (name, expr) of
 				SubstituteSingle subPair -> uncurry eliminateAssign subPair
 				SubstituteNone   subPair -> uncurry eliminateAssign subPair
 				SubstituteAmbiguous -> mzero
@@ -71,6 +71,10 @@ instance SubstituteSingleAccess VecExpression where
 				else return (VecAccess name' j)
 		VecCall callName exprs -> do
 			VecCall callName <$> mapM substituteSingleAccess exprs
+		VecFold callName exprs range -> do
+			VecFold callName
+				<$> mapM substituteSingleAccess exprs
+				<*> substituteSingleAccess range
 
 instance SubstituteSingleAccess VecArgument where
 	substituteSingleAccess = \case
@@ -90,8 +94,8 @@ instance SubstituteSingleAccess VecStatement where
 		-- It is assumed that every variable is assigned only once,
 		-- since the code is vectorized. Therefore it's not the
 		-- variable we are substituting, and no additional checks required.
-		VecAssign name i expr
-			 -> VecAssign name i
+		VecAssign indices expr
+			 -> VecAssign indices
 			<$> substituteSingleAccess expr
 		VecExecute indices executeName args
 			 -> VecExecute indices executeName
@@ -127,3 +131,30 @@ shadowedBy :: Monad m => [Name] -> ReaderT SubstituteAccessEnv m Bool
 shadowedBy names = do
 	(name, _) <- ask
 	return $ fst name `elem` names
+
+bodyMatchFold body
+	= local (M.union $ body ^. vecBodyVars)
+	$ vecBodyStatements (mapM statementMatchFold) body
+
+statementMatchFold :: (Functor m, MonadPlus m) => VecStatement -> ReaderT Vars m VecStatement
+statementMatchFold statement = msum
+	[ case statement of
+		VecForStatement indices forCycle
+			 -> VecAssign indices
+			<$> forCycleMatchFold forCycle
+		_ -> mzero
+	, return statement
+	]
+
+forCycleMatchFold
+	(VecForCycle [(name1, j)] argExprs name2 range (VecBody vars [] [VecCall op args]))
+	| M.null vars && args == [VecAccess name1 j, VecAccess name2 (-1)]
+	= return (foldMatch op argExprs range)
+forCycleMatchFold _ = mzero
+
+foldMatch (CallOperator OpMultiply) [VecPrimary (INumber "1")] range
+	= VecCall (CallName $ Name "product") [range]
+foldMatch (CallOperator OpAdd) [VecPrimary (INumber "1")] range
+	= VecCall (CallName $ Name "sum") [range]
+foldMatch op argExprs range
+	= VecFold op argExprs range

@@ -33,7 +33,6 @@ data Expression
 	= Access Name
 	| Lambda [Pattern] Expression
 	| Beta Expression Expression
-	-- TODO: Sections instead of Binary
 	| Binary Name Expression Expression
 	| Tuple [Expression]
 	| Quote String
@@ -50,7 +49,7 @@ data Expression
 
 data DoStatement
 	= DoBind Pattern Expression
-	| DoLet  Name Expression
+	| DoLet  Pattern Expression
 	| DoExecute Expression
 	deriving (Show)
 

@@ -91,7 +91,7 @@ data VecArgument
 	deriving (Show)
 
 data VecStatement
-	= VecAssign Name Integer VecExpression
+	= VecAssign IndicesList VecExpression
 	| VecExecute IndicesList ExecuteName [VecArgument]
 	| VecForStatement IndicesList VecForCycle
 	| VecMultiIfStatement IndicesList VecMultiIfBranch
@@ -115,9 +115,10 @@ data VecMultiIfBranch
 
 data VecExpression
 	= VecAccess Name Integer
+	| VecFold CallName [VecExpression] VecExpression
 	| VecCall CallName [VecExpression]
 	| VecPrimary Literal
-	deriving (Show)
+	deriving (Eq, Show)
 
 data Literal
 	= INumber String
@@ -127,7 +128,7 @@ data Literal
 	| BTrue
 	| BFalse
 	| Void
-	deriving (Show)
+	deriving (Eq, Show)
 
 data Operator
 	= OpAdd
@@ -143,12 +144,12 @@ data Operator
 	| OpElem
 	| OpShow
 	| OpNegate
-	deriving (Show)
+	deriving (Eq, Show)
 
 data CallName
 	= CallName Name
 	| CallOperator Operator
-	deriving (Show)
+	deriving (Eq, Show)
 
 data ExecuteName
 	= ExecuteName Name

@@ -1,6 +1,6 @@
 module Sodium.Backend.Render (render) where
 
-import Data.List (intersperse)
+import qualified Data.Char as C
 import qualified Text.PrettyPrint as P
 import Sodium.Backend.Program
 
@@ -27,14 +27,6 @@ renderExts cs
 renderImport cs
 	= P.text "import"
 	P.<+> P.text cs
-
-renderDef (ValueDef (PatFunc name names) expr)
-	= P.hsep
-	[ renderName name
-	, P.hsep $ map renderName names
-	, P.text "="
-	, renderExpression expr
-	]
 
 renderDef (ValueDef pat expr)
 	= P.hsep
@@ -134,8 +126,11 @@ renderExpr (Beta expr1 expr2) = renderBinary "" expr1 expr2
 renderExpr (Binary op expr1 expr2) = renderBinary op expr1 expr2
 renderExpr expr = (renderExpression expr, SLevel)
 
-renderOp "" lhs rhs = lhs P.<+> rhs
-renderOp op lhs rhs = lhs P.<+> renderName op P.<+> rhs
+renderOp op lhs rhs = lhs P.<+> rOp P.<+> rhs
+	where rOp
+		| null op = P.empty
+		| C.isAlpha (head op) = P.char '`' P.<> P.text op P.<> P.char '`'
+		| otherwise = P.text op
 
 renderBinary op expr1 expr2
 	= (renderOp op lhs rhs, uncurry ALevel opfix)
@@ -189,25 +184,17 @@ renderExpression (Typed expr t)
 	, renderType t
 	]
 
+renderExpression (DoExpression [DoExecute expr])
+	= renderExpression expr
+
 renderExpression (DoExpression statements)
 	= P.text "do"
-	P.$+$
-		( P.nest 4
-		$ vsep
-		$ map renderStatement
-		$ statements
-		)
+	P.$+$ (P.nest 4 $ vsep $ map renderStatement statements)
 
 renderExpression (PureLet valueDefs expr)
 	= P.text "let"
-	P.$+$
-		( P.nest 4
-		$ vsep
-		$ map renderDef
-		$ valueDefs
-		)
-	P.$+$
-		(P.text "in" P.<+> renderExpression expr)
+	P.$+$ (P.nest 4 $ vsep $ map renderDef valueDefs)
+	P.$+$ (P.text "in" P.<+> renderExpression expr)
 
 renderExpression (IfExpression expr bodyThen bodyElse)
 	= (P.text "if" P.<+> renderExpression expr)
@@ -215,17 +202,17 @@ renderExpression (IfExpression expr bodyThen bodyElse)
 	P.$+$ (P.text "else" P.<+> renderExpression bodyElse)
 
 
-renderExpression expr
-	= fst
-	$ renderExpr expr
+renderExpression expr = fst (renderExpr expr)
 
-renderName
-	= P.text
+renderName name
+	| null name = P.empty
+	| C.isPunctuation (head name) = P.parens (P.text name)
+	| otherwise = P.text name
 
 renderType = \case
 	HsType cs  -> P.text cs
 	HsUnit -> P.text "()"
-	HsIO t -> P.text "IO" P.<+> renderType t
+	HsIO t -> renderName "IO" P.<+> renderType t
 
 renderStatement (DoBind pat expr)
 	= P.hsep
@@ -234,16 +221,19 @@ renderStatement (DoBind pat expr)
 	, renderExpression expr
 	]
 
-renderStatement (DoLet name expr)
+renderStatement (DoLet pat expr)
 	= P.hsep
 	[ P.text "let"
-	, renderName name
+	, renderPattern pat
 	, P.text "="
 	, renderExpression expr
 	]
 
 renderStatement (DoExecute expr)
 	= renderExpression expr
+
+renderPattern (PatFunc name names)
+	= renderName name P.<+> P.hsep (map renderName names)
 
 renderPattern (PatTuple [name])
 	= renderName name

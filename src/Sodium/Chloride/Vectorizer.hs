@@ -57,10 +57,10 @@ vectorizeArgument = \case
 
 vectorizeStatement :: Statement -> State Indices VecStatement
 vectorizeStatement = \case
-	Assign name expr
-		 -> flip (uncurry VecAssign)
-		<$> readerToState (vectorizeExpression expr)
-		<*> registerIndexUpdate name
+	Assign name expr -> do
+		vecExpr <- readerToState (vectorizeExpression expr)
+		retIndices <- mapM registerIndexUpdate [name]
+		return $ VecAssign retIndices vecExpr
 	Execute name args -> do
 		vecArgs <- readerToState $ mapM vectorizeArgument args
 		-- TODO: typecheck in order to find out

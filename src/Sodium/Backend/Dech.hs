@@ -135,9 +135,10 @@ instance Dech S.VecStatement D.DoStatement where
 					 $ D.Beta (D.Access "putStrLn")
 					 $ foldr1 (D.Binary "++")
 					 $ hsExprs
-		S.VecAssign name i expr -> do
-			hsExpr <- dech expr
-			D.DoLet <$> dech (Name name i) <*> return hsExpr
+		S.VecAssign retIndices expr
+			 -> D.DoLet
+			<$> (D.PatTuple <$> dech (IndicesList retIndices))
+			<*> dech expr
 		S.VecForStatement retIndices vecForCycle
 			-> wrap retIndices vecForCycle
 		S.VecMultiIfStatement retIndices vecMultiIfBranch
@@ -175,7 +176,7 @@ instance Dech (Pure S.VecBody) D.Expression where
 				(x:xs') -> (, reverse xs') <$> f x
 				_ -> mzero
 			let dechStatement = \case
-				S.VecAssign name i expr
+				S.VecAssign [(name, i)] expr
 					-> (Name name i, ) <$> dech expr
 				S.VecForStatement [(name, i)] vecForCycle
 					-> (Name name i, ) <$> dech (Pure vecForCycle)
@@ -215,10 +216,10 @@ instance Dech (Pure S.VecForCycle) D.Expression where
 
 instance Dech (Pure S.VecStatement) D.ValueDef where
 	dech (Pure statement) = case statement of
-		S.VecAssign name i expr -> do
-			hsExpr <- dech expr
-			hsName <- dech (Name name i)
-			return $ D.ValueDef (D.PatFunc hsName []) hsExpr
+		S.VecAssign retIndices expr
+			 -> D.ValueDef
+			<$> (D.PatTuple <$> dech (IndicesList retIndices))
+			<*> dech expr
 		S.VecForStatement retIndices vecForCycle
 			-> wrap retIndices vecForCycle
 		S.VecMultiIfStatement retIndices vecMultiIfBranch
@@ -264,25 +265,30 @@ instance Dech S.VecExpression D.Expression where
 			hsExpr1:hsExpr2:hsExprs ->
 				return $ beta (hsOp hsExpr1 hsExpr2 : hsExprs)
 			_ -> mzero
-		let unary hsOp = case hsExprs of
-			hsExpr1:hsExprs ->
-				return $ beta (hsOp hsExpr1 : hsExprs)
-			_ -> mzero
+		let unary hsOp = return $ beta (hsOp : hsExprs)
 		case callName of
-			S.CallName name
-				-> return
-				 $ beta (D.Access (transformName name) : hsExprs)
-			S.CallOperator op -> case op of
-				S.OpNegate -> unary (D.Beta $ D.Access "negate")
-				S.OpShow -> unary (D.Beta $ D.Access "show")
-				S.OpAdd -> binary (D.Binary "+")
-				S.OpSubtract -> binary (D.Binary "-")
-				S.OpMultiply -> binary (D.Binary "*")
-				S.OpDivide -> binary (D.Binary "/")
-				S.OpMore -> binary (D.Binary ">")
-				S.OpLess -> binary (D.Binary "<")
-				S.OpEquals -> binary (D.Binary "==")
-				S.OpAnd -> binary (D.Binary "&&")
-				S.OpOr -> binary (D.Binary "||")
-				S.OpElem -> binary (D.Binary "`elem`")
-				S.OpRange -> binary D.Range
+			S.CallOperator S.OpRange -> binary D.Range
+			_ -> case dechCallName callName of
+				Left unop -> unary (D.Access unop)
+				Right binop -> binary (D.Binary binop)
+	dech (S.VecFold callName exprs range) = do
+		hsArgExpr <- D.Tuple <$> mapM dech exprs
+		hsRange <- dech range
+		hsOp <- D.Access <$> either (const mzero) return (dechCallName callName)
+		return $ beta [D.Access "foldl", hsOp, hsArgExpr, hsRange]
+
+dechCallName = \case
+	S.CallName name -> Left (transformName name)
+	S.CallOperator op -> case op of
+		S.OpNegate -> Left "negate"
+		S.OpShow -> Left "show"
+		S.OpAdd -> Right "+"
+		S.OpSubtract -> Right "-"
+		S.OpMultiply -> Right "*"
+		S.OpDivide -> Right "/"
+		S.OpMore -> Right ">"
+		S.OpLess -> Right "<"
+		S.OpEquals -> Right "=="
+		S.OpAnd -> Right "&&"
+		S.OpOr -> Right "||"
+		S.OpElem -> Right "elem"
