@@ -51,6 +51,16 @@ eliminateAssign bodyResults (statement:statements) = msum
 			let statement = VecForStatement indices
 				(vecForBody .~ subBody $ forCycle)
 			over _2 (statement:) <$> eliminateAssign bodyResults statements
+		VecMultiIfStatement indices multiIfBranch -> do
+			subLeafs <- mapM (_2 bodyEliminateAssign)
+				(multiIfBranch ^. vecMultiIfLeafs)
+			let statement = VecMultiIfStatement indices
+				(vecMultiIfLeafs .~ subLeafs $ multiIfBranch)
+			over _2 (statement:) <$> eliminateAssign bodyResults statements
+		VecBodyStatement indices body -> do
+			subBody <- bodyEliminateAssign body
+			let statement = VecBodyStatement indices subBody
+			over _2 (statement:) <$> eliminateAssign bodyResults statements
 		_ -> mzero
 	, over _2 (statement:) <$> eliminateAssign bodyResults statements
 	]
@@ -103,6 +113,9 @@ instance SubstituteSingleAccess VecStatement where
 		VecForStatement indices forCycle
 			 -> VecForStatement indices
 			<$> substituteSingleAccess forCycle
+		VecMultiIfStatement indices multiIfBranch
+			 -> VecMultiIfStatement indices
+			<$> substituteSingleAccess multiIfBranch
 		_ -> lift $ SubstituteAmbiguous
 
 instance SubstituteSingleAccess VecForCycle where
@@ -115,6 +128,14 @@ instance SubstituteSingleAccess VecForCycle where
 		where subBody shadowed
 			| shadowed  = return
 			| otherwise = vecForBody substituteSingleAccess
+
+instance SubstituteSingleAccess VecMultiIfBranch where
+	substituteSingleAccess
+		 =  vecMultiIfLeafs (mapM subLeaf)
+		>=> vecMultiIfElse substituteSingleAccess
+		where subLeaf (expr, body) = liftA2 (,)
+			(substituteSingleAccess expr)
+			(substituteSingleAccess body)
 
 instance SubstituteSingleAccess VecBody where
 	substituteSingleAccess

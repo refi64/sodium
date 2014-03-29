@@ -190,4 +190,5 @@ makeLenses ''Program
 makeLenses ''VecFunc
 makeLenses ''VecBody
 makeLenses ''VecForCycle
+makeLenses ''VecMultiIfBranch
 makeLenses ''VecProgram
