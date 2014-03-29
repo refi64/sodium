@@ -106,40 +106,40 @@ instance Dech S.VecMultiIfBranch D.Expression where
 		return $ foldr ($) hsBodyElse leafGens
 
 instance Dech S.VecStatement D.DoStatement where
-	dech = \case
-		S.VecExecute retIndices (S.ExecuteRead t) _ -> do
-			hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
-			hsExpr <- if t == S.ClString
-				then return $ D.Access "getLine"
-				else do
-					hsType <- dech t
-					return
-						$ D.Binary "<$>" (D.Access "read") (D.Access "getLine")
-						`D.Typed` D.HsIO hsType 
-			return $ D.DoBind hsRetPat hsExpr
-		S.VecExecute retIndices S.ExecuteWrite args -> do
-			-- WriteLn can't change its arguments
-			guard $ null retIndices
-			hsArgs <- mapM dech args
-			return $ case hsArgs of
+	dech (S.VecExecute retIndices (S.ExecuteRead t) _) = do
+		hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
+		hsExpr <- if t == S.ClString
+			then return $ D.Access "getLine"
+			else do
+				hsType <- dech t
+				return
+					$ D.Binary "<$>" (D.Access "read") (D.Access "getLine")
+					`D.Typed` D.HsIO hsType
+		return $ D.DoBind hsRetPat hsExpr
+	dech (S.VecExecute retIndices S.ExecuteWrite args)
+		| null retIndices
+		= case args of
+			[S.VecRValue (S.VecCall (S.CallOperator S.OpShow) [arg])]
+				-> D.DoExecute . D.Beta (D.Access "print") <$> dech arg
+			args -> (<$> mapM dech args) $ \case
 				[] -> D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
 				hsExprs
 					-> D.DoExecute
 					 $ D.Beta (D.Access "putStrLn")
-					 $ foldr1 (D.Binary "++")
+					 $ foldl1 (D.Binary "++")
 					 $ hsExprs
-		S.VecAssign retIndices expr
-			 -> D.DoLet
-			<$> (D.PatTuple <$> dech (IndicesList retIndices))
-			<*> dech expr
-		S.VecForStatement retIndices vecForCycle
-			-> wrap retIndices vecForCycle
-		S.VecMultiIfStatement retIndices vecMultiIfBranch
-			-> wrap retIndices vecMultiIfBranch
-		_ -> mzero
-		where wrap retIndices vecPart = do
-			hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
-			D.DoBind hsRetPat <$> dech vecPart
+	dech (S.VecAssign retIndices expr)
+		 =  D.DoLet
+		<$> (D.PatTuple <$> dech (IndicesList retIndices))
+		<*> dech expr
+	dech (S.VecForStatement retIndices vecForCycle)
+		 =  D.DoBind
+		<$> (D.PatTuple <$> dech (IndicesList retIndices))
+		<*> dech vecForCycle
+	dech (S.VecMultiIfStatement retIndices vecMultiIfBranch)
+		 =  D.DoBind
+		<$> (D.PatTuple <$> dech (IndicesList retIndices))
+		<*> dech vecMultiIfBranch
 
 instance Dech S.VecFunc D.ValueDef where
 	dech (S.VecFunc (S.FuncSig S.NameMain params S.ClVoid) clBody) = do
