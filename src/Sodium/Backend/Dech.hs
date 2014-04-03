@@ -51,6 +51,9 @@ transformName = \case
 		, "map"
 		, "filter"
 		, "undefined"
+		, "main"
+		, "import"
+		, "_"
 		]
 
 data Name = Name S.Name S.Index

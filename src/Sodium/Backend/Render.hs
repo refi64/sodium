@@ -126,10 +126,12 @@ renderExpr (Beta expr1 expr2) = renderBinary "" expr1 expr2
 renderExpr (Binary op expr1 expr2) = renderBinary op expr1 expr2
 renderExpr expr = (renderExpression expr, SLevel)
 
+isLetter c = C.isAlpha c || c == '_'
+
 renderOp op lhs rhs = lhs P.<+> rOp P.<+> rhs
 	where rOp
 		| null op = P.empty
-		| C.isAlpha (head op) = P.char '`' P.<> P.text op P.<> P.char '`'
+		| isLetter (head op) = P.char '`' P.<> P.text op P.<> P.char '`'
 		| otherwise = P.text op
 
 renderBinary op expr1 expr2
@@ -206,7 +208,7 @@ renderExpression expr = fst (renderExpr expr)
 
 renderName name
 	| null name = P.empty
-	| C.isPunctuation (head name) = P.parens (P.text name)
+	| (not . isLetter) (head name) = P.parens (P.text name)
 	| otherwise = P.text name
 
 renderType = \case
