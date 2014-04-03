@@ -278,6 +278,10 @@ dechCallName = \case
 	S.CallOperator op -> case op of
 		S.OpNegate -> Left "negate"
 		S.OpShow -> Left "show"
+		S.OpProduct -> Left "product"
+		S.OpSum -> Left "sum"
+		S.OpAnd' -> Left "and"
+		S.OpOr' -> Left "or"
 		S.OpAdd -> Right "+"
 		S.OpSubtract -> Right "-"
 		S.OpMultiply -> Right "*"
@@ -288,3 +292,4 @@ dechCallName = \case
 		S.OpAnd -> Right "&&"
 		S.OpOr -> Right "||"
 		S.OpElem -> Right "elem"
+		S.OpRange -> Right "enumFromTo"

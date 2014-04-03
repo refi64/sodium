@@ -54,8 +54,12 @@ eliminateAssign bodyResults (statement:statements) = msum
 		VecMultiIfStatement indices multiIfBranch -> do
 			subLeafs <- mapM (_2 bodyEliminateAssign)
 				(multiIfBranch ^. vecMultiIfLeafs)
+			subElse <- bodyEliminateAssign
+				(multiIfBranch ^. vecMultiIfElse)
 			let statement = VecMultiIfStatement indices
-				(vecMultiIfLeafs .~ subLeafs $ multiIfBranch)
+				$ (vecMultiIfLeafs .~ subLeafs)
+				$ (vecMultiIfElse  .~ subElse)
+				$ multiIfBranch
 			over _2 (statement:) <$> eliminateAssign bodyResults statements
 		VecBodyStatement indices body -> do
 			subBody <- bodyEliminateAssign body
@@ -174,8 +178,12 @@ forCycleMatchFold
 forCycleMatchFold _ = mzero
 
 foldMatch (CallOperator OpMultiply) [VecPrimary (INumber "1")] range
-	= VecCall (CallName $ Name "product") [range]
+	= VecCall (CallOperator OpProduct) [range]
 foldMatch (CallOperator OpAdd) [VecPrimary (INumber "1")] range
-	= VecCall (CallName $ Name "sum") [range]
+	= VecCall (CallOperator OpSum) [range]
+foldMatch (CallOperator OpAnd) [VecPrimary BTrue] range
+	= VecCall (CallOperator OpAnd') [range]
+foldMatch (CallOperator OpOr) [VecPrimary BFalse] range
+	= VecCall (CallOperator OpOr') [range]
 foldMatch op argExprs range
 	= VecFold op argExprs range

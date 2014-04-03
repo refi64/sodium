@@ -144,6 +144,10 @@ data Operator
 	| OpElem
 	| OpShow
 	| OpNegate
+	| OpProduct
+	| OpSum
+	| OpAnd'
+	| OpOr'
 	deriving (Eq, Show)
 
 data CallName
