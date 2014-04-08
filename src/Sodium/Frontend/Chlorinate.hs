@@ -27,11 +27,12 @@ instance Chlor S.Program D.Program where
 		clFuncs <- mapM chlor funcs
 		return $ D.Program (clMain:clFuncs)
 
+bodyStatement statement = D.Body M.empty [statement]
+
 data VB = VB S.Vars S.Body
-vb = VB []
 
 instance Chlor VB D.Body where
-	chlor (VB vardecls (S.Body statements))
+	chlor (VB vardecls statements)
 		 =  D.Body
 		<$> (M.fromList <$> mapM chlor (splitVarDecls vardecls))
 		<*> mapM chlor statements
@@ -76,35 +77,34 @@ instance Chlor S.PasType D.ClType where
 		S.PasString  -> return D.ClString
 		S.PasType cs -> error "Custom types are not implemented"
 
-chlorinateMultiIf expr bodyThen mBodyElse
-	 =  over D.multiIfLeafs . (:)
-	<$> liftA2 (,) (chlor expr) (chlor $ vb bodyThen)
-	<*> maybe (return emptyBranch) k mBodyElse
-	where
-		emptyBranch = D.MultiIfBranch [] (D.Body M.empty [])
-		k = \case
-			S.Body [S.IfBranch expr bodyThen mBodyElse]
-				-> chlorinateMultiIf expr bodyThen mBodyElse
-			body -> D.MultiIfBranch [] <$> chlor (vb body)
-
 binary op a b = D.Call (D.CallOperator op) [a,b]
+
+multifyIf expr bodyThen bodyElse = D.MultiIfBranch [(expr, bodyThen)] bodyElse
 
 instance Chlor S.Statement D.Statement where
 	chlor = \case
+		S.BodyStatement body
+			 -> D.BodyStatement
+			<$> chlor (VB [] body)
 		S.Assign name expr -> D.Assign <$> nameHook name <*> chlor expr
 		S.Execute name exprs
 			 -> D.Execute
 			<$> (D.ExecuteName <$> chlor name)
 			<*> mapM chlor (map Argument exprs)
-		S.ForCycle name fromExpr toExpr body
+		S.ForCycle name fromExpr toExpr statement
 			-> (D.ForStatement <$>)
 			 $  D.ForCycle
 			<$> nameHook name
 			<*> (binary D.OpRange <$> chlor fromExpr <*> chlor toExpr)
-			<*> chlor (vb body)
+			<*> (bodyStatement <$> chlor statement)
 		S.IfBranch expr bodyThen mBodyElse
-			-> D.MultiIfStatement
-			<$> chlorinateMultiIf expr bodyThen mBodyElse
+			-> (D.MultiIfStatement <$>)
+			 $  multifyIf
+			<$> chlor expr
+			<*> (bodyStatement <$> chlor bodyThen)
+			<*> case mBodyElse of
+				Nothing -> return (D.Body M.empty [])
+				Just bodyElse -> bodyStatement <$> chlor bodyElse
 		S.CaseBranch expr leafs mBodyElse -> do
 			(clCaseExpr, wrap) <- case expr of
 				S.Access name -> (, id) <$> (D.Access <$> nameHook name)
@@ -126,9 +126,9 @@ instance Chlor S.Statement D.Statement where
 			let instLeaf (exprs, body)
 				 =  (,)
 				<$> (foldl1 (binary D.OpOr) <$> mapM instRange exprs)
-				<*> chlor (vb body)
+				<*> (bodyStatement <$> chlor body)
 			let instBodyElse = \case
-				Just bodyElse -> chlor (vb bodyElse)
+				Just bodyElse -> (bodyStatement <$> chlor bodyElse)
 				Nothing -> return $ D.Body M.empty []
 			wrap
 				<$> D.MultiIfStatement

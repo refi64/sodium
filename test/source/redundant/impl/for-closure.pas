@@ -4,8 +4,11 @@ var
 begin
 	f := 1;
 	b := 3;
-	for i := 1 to n do
-		f := f * i + b;
+	for i := 1 to n do begin
+		begin
+			f := f * i + b;
+		end;
+	end;
 end;
 
 var

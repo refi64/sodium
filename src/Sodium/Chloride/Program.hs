@@ -56,6 +56,8 @@ data Statement
 	| Execute ExecuteName [Argument]
 	| ForStatement ForCycle
 	| MultiIfStatement MultiIfBranch
+	-- TODO: Use statements instead of bodies
+	-- in other statements
 	| BodyStatement Body
 	deriving (Show)
 

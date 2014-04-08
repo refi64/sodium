@@ -19,6 +19,7 @@ library
                        Sodium.Backend.Render
                        Sodium.Chloride.Program
                        Sodium.Chloride.Vectorizer
+                       Sodium.Chloride.Flatten
                        Sodium.Chloride.IOMagic
                        Sodium.Chloride.Pattern
                        Sodium.Tr

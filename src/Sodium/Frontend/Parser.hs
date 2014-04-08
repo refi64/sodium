@@ -59,12 +59,7 @@ varDeclTr
 	<$> varNamesTr
 	<*> typeTr
 
-varNamesTr = end <|> next where
-	end = expect T.Colon *> return []
-	next
-		 =  (:)
-		<$> nameTr
-		<*> (expect T.Comma *> next <|> end)
+varNamesTr = sepb T.Comma T.Colon nameTr
 
 typeTr = nameTr >>= \case
 	"integer" -> return PasInteger
@@ -77,15 +72,9 @@ typeTr = nameTr >>= \case
 		PasArray <$> typeTr
 	cs -> return $ PasType cs
 
-bodyStatementTr = bodyTr <|> (wrap <$> statementTr) where
-	wrap statement = Body [statement]
-
 bodyTr
-	 =  Body . snd
-	<$  expect T.KwBegin
-	<*> before
-		(statementTr <* expect T.Semicolon)
-		(expect T.KwEnd)
+	 = expect T.KwBegin
+	*> sepb T.Semicolon T.KwEnd statementTr
 
 funcTr
 	 =  Func
@@ -101,13 +90,7 @@ funcTr
 
 paramsTr
 	 =  expect T.LParen
-	 *> (end <|> next)
-	where
-		end = expect T.RParen *> return []
-		next
-			 =  (:)
-			<$> varDeclTr
-			<*> (expect T.Semicolon *> next <|> end)
+	 *> sepb T.Semicolon T.RParen varDeclTr
 
 statementTr
 	= msum
@@ -116,6 +99,8 @@ statementTr
 	, forCycleTr
 	, ifBranchTr
 	, caseBranchTr
+	, BodyStatement <$> bodyTr
+	, return $ BodyStatement []
 	]
 
 assignTr
@@ -138,7 +123,7 @@ forCycleTr
 	<*  expect T.KwTo
 	<*> conditionTr
 	<*  expect T.KwDo
-	<*> bodyStatementTr
+	<*> statementTr
 
 ifBranchTr
 	 =  IfBranch
@@ -149,10 +134,10 @@ ifBranchTr
 	where
 		thenClause
 			 = expect T.KwThen
-			*> bodyStatementTr
+			*> statementTr
 		elseClause
 			 = expect T.KwElse
-			*> bodyStatementTr
+			*> statementTr
 
 caseBranchTr
 	 =  CaseBranch
@@ -167,17 +152,24 @@ caseBranchTr
 	where
 		caseClause
 			 =  (,)
-			<$> caseOneTr
-			<*> bodyStatementTr
+			<$> sepb T.Comma T.Colon rangeTr
+			<*> statementTr
 		elseClause
 			 =  expect T.KwElse
-			 *> bodyStatementTr
+			 *> statementTr
 
 sodiumTr
 	=  expect T.SodiumSpecial
 	*> (snd <$> before nameTr (expect T.RBrace))
 
-sepnTr elem1Tr elem2Tr opTr = do
+sepb septok endtok elemTr = end <|> next where
+	end = expect endtok *> return []
+	next
+		 =  (:)
+		<$> elemTr
+		<*> (expect septok *> next <|> end)
+
+sepn elem1Tr elem2Tr opTr = do
 	elem1 <- elem1Tr
 	mOpf <- optional opfTr
 	return $ fromMaybe id mOpf elem1
@@ -188,7 +180,7 @@ sepnTr elem1Tr elem2Tr opTr = do
 			return $ flip (Binary op) elem2
 
 conditionTr
-	= sepnTr expressionTr expressionTr
+	= sepn expressionTr expressionTr
 	$ head >>= \case
 		T.Suck -> return OpLess
 		T.Blow -> return OpMore
@@ -196,17 +188,10 @@ conditionTr
 		_ -> mzero
 
 rangeTr
-	= sepnTr expressionTr expressionTr
+	= sepn expressionTr expressionTr
 	$ head >>= \case
 		T.DoubleDot -> return OpRange
 		_ -> mzero
-
-caseOneTr = end <|> next where
-	end = expect T.Colon *> return []
-	next
-		 =  (:)
-		<$> rangeTr
-		<*> (expect T.Comma *> next <|> end)
 
 expressionTr = sepl termTr $
 	head >>= \case
@@ -246,13 +231,7 @@ enclosedTr
 
 argsTr
 	=  expect T.LParen
-	*> (end <|> next)
-	where
-		end = expect T.RParen *> return []
-		next
-			 =  (:)
-			<$> conditionTr
-			<*> (expect T.Comma *> next <|> end)
+	*> sepb T.Comma T.RParen conditionTr
 
 accessTr
 	 =  Access

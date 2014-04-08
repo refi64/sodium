@@ -1,7 +1,7 @@
 module Sodium.Frontend.Program
 	( Program(..)
 	, Vars
-	, Body(..)
+	, Body
 	, Func(..)
 	, VarDecl(..)
 	, Statement(..)
@@ -20,9 +20,7 @@ data Program
 
 type Vars = [VarDecl]
 
-data Body
-	= Body [Statement]
-	deriving (Show)
+type Body = [Statement]
 
 data Func
 	= Func Name Vars PasType Vars Body
@@ -35,9 +33,10 @@ data VarDecl
 data Statement
 	= Assign Name Expression
 	| Execute Name [Expression]
-	| ForCycle Name Expression Expression Body
-	| IfBranch Expression Body (Maybe Body)
-	| CaseBranch Expression [([Expression], Body)] (Maybe Body)
+	| ForCycle Name Expression Expression Statement
+	| IfBranch Expression Statement (Maybe Statement)
+	| CaseBranch Expression [([Expression], Statement)] (Maybe Statement)
+	| BodyStatement Body
 	deriving (Show)
 
 data Expression
