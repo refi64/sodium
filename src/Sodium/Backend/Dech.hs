@@ -108,18 +108,19 @@ instance Dech S.VecMultiIfBranch D.Expression where
 		hsBodyElse <- dech bodyElse
 		return $ foldr ($) hsBodyElse leafGens
 
-instance Dech S.VecStatement D.DoStatement where
-	dech (S.VecExecute retIndices (S.ExecuteRead t) _) = do
-		hsRetPat <- D.PatTuple <$> dech (IndicesList retIndices)
-		hsExpr <- if t == S.ClString
+--TODO: Bind/Let inference
+instance Dech (S.IndicesList, S.VecStatement) D.DoStatement where
+	dech (retIndices, S.VecExecute (S.ExecuteRead t) _)
+		 =  D.DoBind
+		<$> (D.PatTuple <$> dech (IndicesList retIndices))
+		<*> if t == S.ClString
 			then return $ D.Access "getLine"
 			else do
 				hsType <- dech t
 				return
 					$ D.Binary "<$>" (D.Access "read") (D.Access "getLine")
 					`D.Typed` D.HsIO hsType
-		return $ D.DoBind hsRetPat hsExpr
-	dech (S.VecExecute retIndices S.ExecuteWrite args)
+	dech (retIndices, S.VecExecute S.ExecuteWrite args)
 		| null retIndices
 		= case args of
 			[S.VecRValue (S.VecCall (S.CallOperator S.OpShow) [arg])]
@@ -131,15 +132,15 @@ instance Dech S.VecStatement D.DoStatement where
 					 $ D.Beta (D.Access "putStrLn")
 					 $ foldl1 (D.Binary "++")
 					 $ hsExprs
-	dech (S.VecAssign retIndices expr)
+	dech (retIndices, S.VecAssign expr)
 		 =  D.DoLet
 		<$> (D.PatTuple <$> dech (IndicesList retIndices))
 		<*> dech expr
-	dech (S.VecForStatement retIndices vecForCycle)
+	dech (retIndices, S.VecForStatement vecForCycle)
 		 =  D.DoBind
 		<$> (D.PatTuple <$> dech (IndicesList retIndices))
 		<*> dech vecForCycle
-	dech (S.VecMultiIfStatement retIndices vecMultiIfBranch)
+	dech (retIndices, S.VecMultiIfStatement vecMultiIfBranch)
 		 =  D.DoBind
 		<$> (D.PatTuple <$> dech (IndicesList retIndices))
 		<*> dech vecMultiIfBranch
@@ -171,16 +172,18 @@ instance Dech (Pure S.VecBody) D.Expression where
 			let appToLast f xs = case reverse xs of
 				(x:xs') -> (, reverse xs') <$> f x
 				_ -> mzero
-			let dechStatement = \case
-				S.VecAssign [(name, i)] expr
-					-> (Name name i, ) <$> dech expr
-				S.VecForStatement [(name, i)] vecForCycle
-					-> (Name name i, ) <$> dech (Pure vecForCycle)
-				S.VecMultiIfStatement [(name, i)] vecMultiIfBranch
-					-> (Name name i, ) <$> dech (Pure vecMultiIfBranch)
-				S.VecBodyStatement [(name, i)] vecBody
-					-> (Name name i, ) <$> dech (Pure vecBody)
+			let extractIndex = \case
+				[(name, i)] -> return (Name name i)
 				_ -> mzero
+			let dechStatement (indices, statement)
+				 =  (,)
+				<$> extractIndex indices
+				<*> case statement of
+					S.VecAssign expr -> dech expr
+					S.VecForStatement vecForCycle -> dech (Pure vecForCycle)
+					S.VecMultiIfStatement vecMultiIfBranch -> dech (Pure vecMultiIfBranch)
+					S.VecBodyStatement vecBody -> dech (Pure vecBody)
+					_ -> mzero
 			((name2, hsExpr), statements) <- appToLast dechStatement statements
 			guard $ name1 == name2
 			hsValueDefs <- mapM dech (map Pure statements)
@@ -210,23 +213,17 @@ instance Dech (Pure S.VecForCycle) D.Expression where
 			<*> dech (Pure clBody)
 		return $ beta [D.Access "foldl", hsFoldLambda, hsArgExpr, hsRange]
 
-instance Dech (Pure S.VecStatement) D.ValueDef where
-	dech (Pure statement) = case statement of
-		S.VecAssign retIndices expr
-			 -> D.ValueDef
-			<$> (D.PatTuple <$> dech (IndicesList retIndices))
-			<*> dech expr
-		S.VecForStatement retIndices vecForCycle
-			-> wrap retIndices vecForCycle
-		S.VecMultiIfStatement retIndices vecMultiIfBranch
-			-> wrap retIndices vecMultiIfBranch
-		S.VecBodyStatement retIndices vecBody
-			-> wrap retIndices vecBody
-		_ -> mzero
-		where wrap retIndices vecPart
-			 = D.ValueDef
-			<$> (D.PatTuple <$> dech (IndicesList retIndices))
-			<*> dech (Pure vecPart)
+
+instance Dech (Pure (S.IndicesList, S.VecStatement)) D.ValueDef where
+	dech (Pure (retIndices, statement))
+		 =  D.ValueDef
+		<$> (D.PatTuple <$> dech (IndicesList retIndices))
+		<*> case statement of
+			S.VecAssign expr -> dech expr
+			S.VecForStatement vecForCycle -> dech (Pure vecForCycle)
+			S.VecMultiIfStatement vecMultiIfBranch -> dech (Pure vecMultiIfBranch)
+			S.VecBodyStatement vecBody -> dech (Pure vecBody)
+			_ -> mzero
 
 beta = foldl1 D.Beta
 

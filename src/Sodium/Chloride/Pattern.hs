@@ -33,41 +33,38 @@ bodyEliminateAssign body
 eliminateAssign
 	:: (Functor m, MonadPlus m)
 	=> [VecExpression]
-	-> [VecStatement]
-	-> ReaderT Vars m ([VecExpression], [VecStatement])
+	-> [(IndicesList, VecStatement)]
+	-> ReaderT Vars m ([VecExpression], [(IndicesList, VecStatement)])
 eliminateAssign bodyResults [] = return (bodyResults, [])
-eliminateAssign bodyResults (statement:statements) = msum
-	[ case statement of
-		VecAssign [name] expr -> do
+eliminateAssign bodyResults ((indices, statement):statements)
+	= (`mplus` follow statement)
+	$ case statement of
+		VecAssign expr -> do
+			name <- case indices of
+				[name] -> return name
+				_ -> mzero
 			let subSingle = liftA2 (,)
 				(mapM substituteSingleAccess bodyResults)
-				(mapM substituteSingleAccess statements)
+				(mapM (_2 substituteSingleAccess) statements)
 			case runReaderT subSingle (name, expr) of
 				SubstituteSingle subPair -> uncurry eliminateAssign subPair
 				SubstituteNone   subPair -> uncurry eliminateAssign subPair
 				SubstituteAmbiguous -> mzero
-		VecForStatement indices forCycle -> do
-			subBody <- bodyEliminateAssign (forCycle ^. vecForBody)
-			let statement = VecForStatement indices
-				(vecForBody .~ subBody $ forCycle)
-			over _2 (statement:) <$> eliminateAssign bodyResults statements
-		VecMultiIfStatement indices multiIfBranch -> do
-			subLeafs <- mapM (_2 bodyEliminateAssign)
-				(multiIfBranch ^. vecMultiIfLeafs)
-			subElse <- bodyEliminateAssign
-				(multiIfBranch ^. vecMultiIfElse)
-			let statement = VecMultiIfStatement indices
-				$ (vecMultiIfLeafs .~ subLeafs)
-				$ (vecMultiIfElse  .~ subElse)
-				$ multiIfBranch
-			over _2 (statement:) <$> eliminateAssign bodyResults statements
-		VecBodyStatement indices body -> do
-			subBody <- bodyEliminateAssign body
-			let statement = VecBodyStatement indices subBody
-			over _2 (statement:) <$> eliminateAssign bodyResults statements
-		_ -> mzero
-	, over _2 (statement:) <$> eliminateAssign bodyResults statements
-	]
+		statement -> (touch >=> follow) statement
+	where
+		follow statement
+			 =  over _2 ((indices, statement):)
+			<$> eliminateAssign bodyResults statements
+		touch (VecForStatement forCycle)
+			= VecForStatement <$> vecForBody bodyEliminateAssign forCycle
+		touch (VecMultiIfStatement multiIfBranch)
+			= VecMultiIfStatement <$> k multiIfBranch
+			where k
+				 =  vecMultiIfLeafs (mapM $ _2 bodyEliminateAssign)
+				>=> vecMultiIfElse bodyEliminateAssign
+		touch (VecBodyStatement body)
+			= VecBodyStatement <$> bodyEliminateAssign body
+		touch _ = mzero
 
 
 type SubstituteAccessEnv = ((Name, Index), VecExpression)
@@ -108,17 +105,15 @@ instance SubstituteSingleAccess VecStatement where
 		-- It is assumed that every variable is assigned only once,
 		-- since the code is vectorized. Therefore it's not the
 		-- variable we are substituting, and no additional checks required.
-		VecAssign indices expr
-			 -> VecAssign indices
-			<$> substituteSingleAccess expr
-		VecExecute indices executeName args
-			 -> VecExecute indices executeName
+		VecAssign expr -> VecAssign <$> substituteSingleAccess expr
+		VecExecute executeName args
+			 -> VecExecute executeName
 			<$> mapM substituteSingleAccess args
-		VecForStatement indices forCycle
-			 -> VecForStatement indices
+		VecForStatement forCycle
+			 -> VecForStatement
 			<$> substituteSingleAccess forCycle
-		VecMultiIfStatement indices multiIfBranch
-			 -> VecMultiIfStatement indices
+		VecMultiIfStatement multiIfBranch
+			 -> VecMultiIfStatement
 			<$> substituteSingleAccess multiIfBranch
 		_ -> lift $ SubstituteAmbiguous
 
@@ -149,7 +144,7 @@ instance SubstituteSingleAccess VecBody where
 		where subBody shadowed
 			| shadowed = return
 			| otherwise
-				 =  vecBodyStatements (mapM substituteSingleAccess)
+				 =  vecBodyStatements (mapM $ _2 substituteSingleAccess)
 				>=> vecBodyResults (mapM substituteSingleAccess)
 
 shadowedBy :: Monad m => [Name] -> ReaderT SubstituteAccessEnv m Bool
@@ -159,17 +154,12 @@ shadowedBy names = do
 
 bodyMatchFold body
 	= local (M.union $ body ^. vecBodyVars)
-	$ vecBodyStatements (mapM statementMatchFold) body
+	$ vecBodyStatements (mapM $ _2 statementMatchFold) body
 
 statementMatchFold :: (Functor m, MonadPlus m) => VecStatement -> ReaderT Vars m VecStatement
-statementMatchFold statement = msum
-	[ case statement of
-		VecForStatement indices forCycle
-			 -> VecAssign indices
-			<$> forCycleMatchFold forCycle
-		_ -> mzero
-	, return statement
-	]
+statementMatchFold = \case
+	VecForStatement forCycle -> VecAssign <$> forCycleMatchFold forCycle
+	statement -> return statement
 
 forCycleMatchFold
 	(VecForCycle [(name1, j)] argExprs name2 range (VecBody vars [] [VecCall op args]))

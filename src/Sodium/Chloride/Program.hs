@@ -81,7 +81,7 @@ data Expression
 data VecBody
 	= VecBody
 	{ _vecBodyVars :: Vars
-	, _vecBodyStatements :: [VecStatement]
+	, _vecBodyStatements :: [(IndicesList, VecStatement)]
 	, _vecBodyResults :: [VecExpression]
 	} deriving (Show)
 
@@ -91,11 +91,11 @@ data VecArgument
 	deriving (Show)
 
 data VecStatement
-	= VecAssign IndicesList VecExpression
-	| VecExecute IndicesList ExecuteName [VecArgument]
-	| VecForStatement IndicesList VecForCycle
-	| VecMultiIfStatement IndicesList VecMultiIfBranch
-	| VecBodyStatement IndicesList VecBody
+	= VecAssign VecExpression
+	| VecExecute ExecuteName [VecArgument]
+	| VecForStatement VecForCycle
+	| VecMultiIfStatement VecMultiIfBranch
+	| VecBodyStatement VecBody
 	deriving (Show)
 
 data VecForCycle
