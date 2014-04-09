@@ -36,7 +36,7 @@ joinMultiIf multiIfBranch = case multiIfBranch ^. multiIfElse of
 			[MultiIfStatement multiIfBranch']
 				-> Just
 				 $ multiIfLeafs %~ (++) (multiIfBranch ^. multiIfLeafs)
-				 $ multiIfBranch'
+				 $ tryApply joinMultiIf multiIfBranch'
 			_ -> Nothing
 	_ -> Nothing
 
