@@ -130,11 +130,9 @@ instance SubstituteSingleAccess VecForCycle where
 
 instance SubstituteSingleAccess VecMultiIfBranch where
 	substituteSingleAccess
-		 =  (vecMultiIfLeafs . traversed) subLeaf
+		 =  (vecMultiIfLeafs . traversed)
+		 	(_1 substituteSingleAccess >=> _2 substituteSingleAccess)
 		>=> vecMultiIfElse substituteSingleAccess
-		where subLeaf (expr, body) = liftA2 (,)
-			(substituteSingleAccess expr)
-			(substituteSingleAccess body)
 
 instance SubstituteSingleAccess VecBody where
 	substituteSingleAccess

@@ -13,32 +13,22 @@ flattenStatements = concatMap k where
 	k (BodyStatement body)
 		| M.null (body ^. bodyVars)
 		= flattenStatements (body ^. bodyStatements)
-	k (ForStatement forCycle)
-		= pure $ ForStatement
-			$ forBody %~ flattenBody
-			$ forCycle
-	k (MultiIfStatement multiIfBranch)
-		= pure $ MultiIfStatement
-			$ tryApply joinMultiIf
-			$ multiIfElse %~ flattenBody
-			$ multiIfLeafs . traversed . _2 %~ flattenBody
-			$ multiIfBranch
 	k statement
-		= pure statement
+		= pure (onFor . onMultiIf $ statement)
+	onMultiIf = _MultiIfStatement
+		%~ tryApply joinMultiIf
+		. (multiIfElse %~ flattenBody)
+		. (multiIfLeafs . traversed . _2 %~ flattenBody)
+	onFor = _ForStatement %~ (forBody %~ flattenBody)
 
 flattenBody :: Body -> Body
 flattenBody = bodyStatements %~ flattenStatements
 
 joinMultiIf :: MultiIfBranch -> Maybe MultiIfBranch
-joinMultiIf multiIfBranch = case multiIfBranch ^. multiIfElse of
-	body | M.null (body ^. bodyVars)
-		-> case body ^. bodyStatements of
-			[MultiIfStatement multiIfBranch']
-				-> Just
-				 $ multiIfLeafs %~ (++) (multiIfBranch ^. multiIfLeafs)
-				 $ tryApply joinMultiIf multiIfBranch'
-			_ -> Nothing
-	_ -> Nothing
+joinMultiIf multiIfBranch
+	 = multiIfBranch ^? multiIfElse . bodySingleton . _MultiIfStatement
+	<&> \multiIfBranch' -> tryApply joinMultiIf multiIfBranch'
+		& multiIfLeafs %~ (++) (multiIfBranch ^. multiIfLeafs)
 
 tryApply :: (a -> Maybe a) -> (a -> a)
 tryApply f a = maybe a id (f a)

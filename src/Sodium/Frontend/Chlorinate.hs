@@ -2,8 +2,10 @@
  
 module Sodium.Frontend.Chlorinate (chlorinate) where
 
+import Prelude hiding (mapM)
 import Control.Applicative
-import Control.Monad.Reader
+import Control.Monad.Reader hiding (mapM)
+import Data.Traversable
 import Control.Lens
 -- S for Src, D for Dest
 import qualified Sodium.Frontend.Program as S
@@ -27,7 +29,13 @@ instance Chlor S.Program D.Program where
 		clFuncs <- mapM chlor funcs
 		return $ D.Program (clMain:clFuncs)
 
-bodyStatement statement = D.Body M.empty [statement]
+chlorBodyStatement statement
+	 =  review D.bodySingleton
+	<$> chlor statement
+
+maybeBodySingleton
+	= maybe D.bodyEmpty
+	$ review D.bodySingleton
 
 data VB = VB S.Vars S.Body
 
@@ -96,15 +104,13 @@ instance Chlor S.Statement D.Statement where
 			 $  D.ForCycle
 			<$> nameHook name
 			<*> (binary D.OpRange <$> chlor fromExpr <*> chlor toExpr)
-			<*> (bodyStatement <$> chlor statement)
+			<*> chlorBodyStatement statement
 		S.IfBranch expr bodyThen mBodyElse
 			-> (D.MultiIfStatement <$>)
 			 $  multifyIf
 			<$> chlor expr
-			<*> (bodyStatement <$> chlor bodyThen)
-			<*> case mBodyElse of
-				Nothing -> return (D.Body M.empty [])
-				Just bodyElse -> bodyStatement <$> chlor bodyElse
+			<*> chlorBodyStatement bodyThen
+			<*> (maybeBodySingleton <$> mapM chlor mBodyElse)
 		S.CaseBranch expr leafs mBodyElse -> do
 			(clCaseExpr, wrap) <- case expr of
 				S.Access name -> (, id) <$> (D.Access <$> nameHook name)
@@ -126,15 +132,12 @@ instance Chlor S.Statement D.Statement where
 			let instLeaf (exprs, body)
 				 =  (,)
 				<$> (foldl1 (binary D.OpOr) <$> mapM instRange exprs)
-				<*> (bodyStatement <$> chlor body)
-			let instBodyElse = \case
-				Just bodyElse -> (bodyStatement <$> chlor bodyElse)
-				Nothing -> return $ D.Body M.empty []
-			wrap
-				<$> D.MultiIfStatement
-				<$> (D.MultiIfBranch
+				<*> chlorBodyStatement body
+			let multiIfBranch
+				 =  D.MultiIfBranch
 				<$> mapM instLeaf leafs
-				<*> instBodyElse mBodyElse)
+				<*> (maybeBodySingleton <$> mapM chlor mBodyElse)
+			wrap <$> (D.MultiIfStatement <$> multiIfBranch)
 
 data Argument = Argument S.Expression
 

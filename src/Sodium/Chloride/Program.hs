@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Sodium.Chloride.Program where
 
+import Control.Lens (prism', Simple, Prism)
 import Control.Lens.TH
 import qualified Data.Map as M
 
@@ -186,6 +187,16 @@ type Indices
 type IndicesList
 	= [(Name, Index)]
 
+bodyEmpty :: Body
+bodyEmpty = Body M.empty []
+
+bodySingleton :: Simple Prism Body Statement
+bodySingleton
+	= prism' (\s -> Body M.empty [s])
+	$ \case
+		Body vars [statement] | M.null vars -> Just statement
+		_ -> Nothing
+
 makeLenses ''FuncSig
 makeLenses ''Func
 makeLenses ''Body
@@ -198,3 +209,5 @@ makeLenses ''VecBody
 makeLenses ''VecForCycle
 makeLenses ''VecMultiIfBranch
 makeLenses ''VecProgram
+
+makePrisms ''Statement
