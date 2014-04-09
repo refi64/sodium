@@ -8,7 +8,7 @@ import Sodium.Chloride.Program
 import Sodium.SubstituteSingle
 
 sub :: VecProgram -> VecProgram
-sub = vecProgramFuncs %~ map subFunc
+sub = vecProgramFuncs . traversed %~ subFunc
 
 subFunc :: VecFunc -> VecFunc
 subFunc func = maybe func id $ do
@@ -17,7 +17,7 @@ subFunc func = maybe func id $ do
 		(func ^. vecFuncSig . funcParams)
 	return $ vecFuncBody .~ subBody $ func
 
-subBody :: (Functor m, MonadPlus m) => VecBody -> ReaderT Vars m VecBody
+subBody :: (Alternative m, MonadPlus m) => VecBody -> ReaderT Vars m VecBody
 subBody = bodyEliminateAssign <=< bodyMatchFold <=< bodyEliminateAssign
 
 bodyEliminateAssign body
@@ -31,13 +31,13 @@ bodyEliminateAssign body
 		$ body
 
 eliminateAssign
-	:: (Functor m, MonadPlus m)
+	:: (Alternative m, MonadPlus m)
 	=> [VecExpression]
 	-> [(IndicesList, VecStatement)]
 	-> ReaderT Vars m ([VecExpression], [(IndicesList, VecStatement)])
 eliminateAssign bodyResults [] = return (bodyResults, [])
 eliminateAssign bodyResults ((indices, statement):statements)
-	= (`mplus` follow statement)
+	= (<|> follow statement)
 	$ case statement of
 		VecAssign expr -> do
 			name <- case indices of
@@ -60,7 +60,7 @@ eliminateAssign bodyResults ((indices, statement):statements)
 		touch (VecMultiIfStatement multiIfBranch)
 			= VecMultiIfStatement <$> k multiIfBranch
 			where k
-				 =  vecMultiIfLeafs (mapM $ _2 bodyEliminateAssign)
+				 =  (vecMultiIfLeafs . traversed . _2) bodyEliminateAssign
 				>=> vecMultiIfElse bodyEliminateAssign
 		touch (VecBodyStatement body)
 			= VecBodyStatement <$> bodyEliminateAssign body
@@ -120,9 +120,9 @@ instance SubstituteSingleAccess VecStatement where
 instance SubstituteSingleAccess VecForCycle where
 	substituteSingleAccess
 		 =  vecForRange substituteSingleAccess
-		>=> vecForArgExprs (mapM substituteSingleAccess)
+		>=> (vecForArgExprs . traversed) substituteSingleAccess
 		>=> liftA2 (>>=)
-			(shadowedBy . map fst . view vecForArgIndices)
+			(shadowedBy . toListOf (vecForArgIndices . traversed . _1))
 			(flip subBody)
 		where subBody shadowed
 			| shadowed  = return
@@ -130,7 +130,7 @@ instance SubstituteSingleAccess VecForCycle where
 
 instance SubstituteSingleAccess VecMultiIfBranch where
 	substituteSingleAccess
-		 =  vecMultiIfLeafs (mapM subLeaf)
+		 =  (vecMultiIfLeafs . traversed) subLeaf
 		>=> vecMultiIfElse substituteSingleAccess
 		where subLeaf (expr, body) = liftA2 (,)
 			(substituteSingleAccess expr)
@@ -144,8 +144,8 @@ instance SubstituteSingleAccess VecBody where
 		where subBody shadowed
 			| shadowed = return
 			| otherwise
-				 =  vecBodyStatements (mapM $ _2 substituteSingleAccess)
-				>=> vecBodyResults (mapM substituteSingleAccess)
+				 =  (vecBodyStatements . traversed . _2) substituteSingleAccess
+				>=> (vecBodyResults . traversed) substituteSingleAccess
 
 shadowedBy :: Monad m => [Name] -> ReaderT SubstituteAccessEnv m Bool
 shadowedBy names = do
@@ -154,7 +154,7 @@ shadowedBy names = do
 
 bodyMatchFold body
 	= local (M.union $ body ^. vecBodyVars)
-	$ vecBodyStatements (mapM $ _2 statementMatchFold) body
+	$ (vecBodyStatements . traversed . _2) statementMatchFold body
 
 statementMatchFold :: (Functor m, MonadPlus m) => VecStatement -> ReaderT Vars m VecStatement
 statementMatchFold = \case

@@ -6,7 +6,7 @@ import qualified Data.Map as M
 import Sodium.Chloride.Program
 
 flatten :: Program -> Program
-flatten = overStatements flattenStatements
+flatten = programFuncs . traversed . funcBody . bodyStatements %~ flattenStatements
 
 flattenStatements :: [Statement] -> [Statement]
 flattenStatements = concatMap k where
@@ -21,13 +21,13 @@ flattenStatements = concatMap k where
 		= pure $ MultiIfStatement
 			$ tryApply joinMultiIf
 			$ multiIfElse %~ flattenBody
-			$ multiIfLeafs %~ (map $ _2 %~ flattenBody)
+			$ multiIfLeafs . traversed . _2 %~ flattenBody
 			$ multiIfBranch
 	k statement
 		= pure statement
 
 flattenBody :: Body -> Body
-flattenBody = over bodyStatements flattenStatements
+flattenBody = bodyStatements %~ flattenStatements
 
 joinMultiIf :: MultiIfBranch -> Maybe MultiIfBranch
 joinMultiIf multiIfBranch = case multiIfBranch ^. multiIfElse of
@@ -42,8 +42,3 @@ joinMultiIf multiIfBranch = case multiIfBranch ^. multiIfElse of
 
 tryApply :: (a -> Maybe a) -> (a -> a)
 tryApply f a = maybe a id (f a)
-
-overStatements
-	= over programFuncs . map
-	. over funcBody
-	. over bodyStatements
