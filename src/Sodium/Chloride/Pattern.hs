@@ -5,7 +5,7 @@ import Control.Monad.Reader
 import Control.Lens hiding (Index)
 import qualified Data.Map as M
 import Sodium.Chloride.Program
-import Sodium.SubstituteSingle
+import Sodium.ApplyOnce
 
 sub :: VecProgram -> VecProgram
 sub = vecProgramFuncs . traversed %~ subFunc
@@ -47,9 +47,9 @@ eliminateAssign bodyResults ((indices, statement):statements)
 				(mapM substituteSingleAccess bodyResults)
 				(mapM (_2 substituteSingleAccess) statements)
 			case runReaderT subSingle (name, expr) of
-				SubstituteSingle subPair -> uncurry eliminateAssign subPair
-				SubstituteNone   subPair -> uncurry eliminateAssign subPair
-				SubstituteAmbiguous -> mzero
+				Once subPair -> uncurry eliminateAssign subPair
+				None subPair -> uncurry eliminateAssign subPair
+				Ambiguous -> mzero
 		statement -> (touch >=> follow) statement
 	where
 		follow statement
@@ -68,7 +68,7 @@ eliminateAssign bodyResults ((indices, statement):statements)
 type SubstituteAccessEnv = ((Name, Index), VecExpression)
 
 class SubstituteSingleAccess a where
-	substituteSingleAccess :: a -> ReaderT SubstituteAccessEnv SubstituteSingle a
+	substituteSingleAccess :: a -> ReaderT SubstituteAccessEnv ApplyOnce a
 
 instance SubstituteSingleAccess VecExpression where
 	substituteSingleAccess = \case
@@ -76,7 +76,7 @@ instance SubstituteSingleAccess VecExpression where
 		VecAccess name' j -> do
 			(name, expr) <- ask
 			if name == (name', j)
-				then lift (SubstituteSingle expr)
+				then lift (Once expr)
 				else return (VecAccess name' j)
 		VecCall callName exprs -> do
 			VecCall callName <$> mapM substituteSingleAccess exprs
@@ -94,7 +94,7 @@ instance SubstituteSingleAccess VecArgument where
 		VecLValue name' j -> do
 			(name, _) <- ask
 			if name == (name', j)
-				then lift SubstituteAmbiguous
+				then lift Ambiguous
 				else return (VecLValue name' j)
 		VecRValue expr -> VecRValue <$> substituteSingleAccess expr
 
@@ -113,7 +113,7 @@ instance SubstituteSingleAccess VecStatement where
 		VecMultiIfStatement multiIfBranch
 			 -> VecMultiIfStatement
 			<$> substituteSingleAccess multiIfBranch
-		_ -> lift $ SubstituteAmbiguous
+		_ -> lift $ Ambiguous
 
 instance SubstituteSingleAccess VecForCycle where
 	substituteSingleAccess
