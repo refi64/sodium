@@ -18,11 +18,9 @@ uncurse program
 	$ (programFuncs . traversed) uncurseFunc program
 
 uncurseFunc :: Func -> Either Error Func
-uncurseFunc func
-	= runReaderT
-		(uncurseBody $ func ^. funcBody)
-		(func ^. funcSig . funcParams)
-	<&> flip (set funcBody) func
+uncurseFunc func = runReaderT
+	(funcBody uncurseBody func)
+	(func ^. funcSig . funcParams)
 
 uncurseBody :: M Body
 uncurseBody body
@@ -30,25 +28,21 @@ uncurseBody body
 	$ (bodyStatements . traversed) uncurseStatement body
 
 uncurseStatement :: M Statement
-uncurseStatement (Execute name args) = case name of
-	ExecuteRead _ -> case args of
-		[LValue name]
-			 -> lookupType name
-			<&> \t ->Execute (ExecuteRead t) [LValue name]
-		_ -> error "IOMagic supports only single-value read operations"
-	ExecuteWrite
-		 -> Execute ExecuteWrite
-		<$> mapM uncurseArgument args
-	_ -> return (Execute name args)
-uncurseStatement (ForStatement forCycle)
-	= ForStatement <$> forBody uncurseBody forCycle
-uncurseStatement (MultiIfStatement multiIfBranch)
-	= MultiIfStatement <$> k uncurseBody multiIfBranch
-	where k = (>=>) <$> multiIfLeafs . traversed . _2 <*> multiIfElse
-uncurseStatement (BodyStatement body)
-	= BodyStatement <$> uncurseBody body
-uncurseStatement statement
-	= return statement
+uncurseStatement = onExecute >=> onFor >=> onMultiIf >=> onBody where
+	onFor = _ForStatement (forBody uncurseBody)
+	onMultiIf = _MultiIfStatement (k uncurseBody)
+		where k = (>=>) <$> multiIfLeafs . traversed . _2 <*> multiIfElse
+	onBody = _BodyStatement uncurseBody
+	onExecute = _Execute $ \(name, args) -> case name of
+		ExecuteRead _ -> case args of
+			[LValue name]
+				 -> lookupType name
+				<&> \t -> (ExecuteRead t, args)
+			_ -> error "IOMagic supports only single-value read operations"
+		ExecuteWrite
+			 -> (,) ExecuteWrite
+			<$> mapM uncurseArgument args
+		_ -> return (name, args)
 
 uncurseArgument :: M Argument
 uncurseArgument = \case
