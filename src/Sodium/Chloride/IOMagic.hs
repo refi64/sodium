@@ -1,64 +1,66 @@
 module Sodium.Chloride.IOMagic (uncurse) where
 
+import Control.Applicative
 import Control.Monad.Reader
 import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
 
-uncurse :: Program -> Program
-uncurse (Program funcs) = either error id $ do
-	uncFuncs <- mapM uncurseFunc funcs
-	return $ Program uncFuncs
+data Error
+	= NoAccess Name
+	deriving (Show)
 
-uncurseFunc :: Func -> (Either String) Func
-uncurseFunc func = do
-	uncBody <- runReaderT
+type M a = a -> ReaderT Vars (Either Error) a
+
+uncurse :: Program -> Program
+uncurse program
+	= either (error . show) id
+	$ (programFuncs . traversed) uncurseFunc program
+
+uncurseFunc :: Func -> Either Error Func
+uncurseFunc func
+	= runReaderT
 		(uncurseBody $ func ^. funcBody)
 		(func ^. funcSig . funcParams)
-	return $ funcBody .~ uncBody $ func
+	<&> flip (set funcBody) func
 
-uncurseBody :: Body -> ReaderT Vars (Either String) Body
+uncurseBody :: M Body
 uncurseBody body
 	= local (M.union $ body ^. bodyVars)
-	$ do
-		uncStatements <- mapM uncurseStatement (body ^. bodyStatements)
-		return $ bodyStatements .~ uncStatements $ body
+	$ (bodyStatements . traversed) uncurseStatement body
 
-uncurseStatement :: Statement -> ReaderT Vars (Either String) Statement
-uncurseStatement = \case
-	Execute (ExecuteName (Name "readln")) [LValue name] -> do
-		t <- lookupType name
-		return $ Execute (ExecuteRead t) [LValue name]
-	Execute (ExecuteName (Name "writeln")) args -> do
-		args' <- forM args $ \case
-			-- TODO: apply `show` to expressions
-			-- as soon as typecheck is implemented
-			RValue expr -> return $ RValue expr
-			LValue name -> do
-				t <- lookupType name
-				return $ case t of
-					ClString -> RValue $ Access name
-					_ -> RValue $ Call (CallOperator OpShow) [Access name]
-		return $ Execute ExecuteWrite args'
-	ForStatement forCycle -> do
-		uncBody <- uncurseBody (forCycle ^. forBody)
-		return $ ForStatement (forBody .~ uncBody $ forCycle)
-	MultiIfStatement multiIfBranch -> do
-		let uncurseLeaf (expr, body) = do
-			uncBody <- uncurseBody body
-			return (expr, uncBody)
-		uncLeafs <- mapM uncurseLeaf (multiIfBranch ^. multiIfLeafs )
-		uncBodyElse <- uncurseBody (multiIfBranch ^. multiIfElse)
-		return
-			$ MultiIfStatement
-			$ multiIfLeafs .~ uncLeafs
-			$ multiIfElse  .~ uncBodyElse
-			$ multiIfBranch
-	-- TODO: BodyStatement
-	statement -> return statement
+uncurseStatement :: M Statement
+uncurseStatement (Execute name args) = case name of
+	ExecuteRead _ -> case args of
+		[LValue name]
+			 -> lookupType name
+			<&> \t ->Execute (ExecuteRead t) [LValue name]
+		_ -> error "IOMagic supports only single-value read operations"
+	ExecuteWrite
+		 -> Execute ExecuteWrite
+		<$> mapM uncurseArgument args
+	_ -> return (Execute name args)
+uncurseStatement (ForStatement forCycle)
+	= ForStatement <$> forBody uncurseBody forCycle
+uncurseStatement (MultiIfStatement multiIfBranch)
+	= MultiIfStatement <$> k uncurseBody multiIfBranch
+	where k = (>=>) <$> multiIfLeafs . traversed . _2 <*> multiIfElse
+uncurseStatement (BodyStatement body)
+	= BodyStatement <$> uncurseBody body
+uncurseStatement statement
+	= return statement
+
+uncurseArgument :: M Argument
+uncurseArgument = \case
+	-- TODO: apply `show` only to non-String
+	-- expressions as soon as typecheck is implemented
+	RValue expr -> return $ RValue expr
+	LValue name
+		 -> lookupType name
+		<&> \case
+			ClString -> RValue $ Access name
+			_ -> RValue $ Call (CallOperator OpShow) [Access name]
 
 lookupType name = do
 	vars <- ask
-	lift $ maybe
-		(Left $ "IOMagic could not access type of " ++ show name)
-		Right (M.lookup name vars)
+	lift $ maybe (Left $ NoAccess name) Right (M.lookup name vars)

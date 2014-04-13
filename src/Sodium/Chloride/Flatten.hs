@@ -1,6 +1,7 @@
 module Sodium.Chloride.Flatten (flatten) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program
@@ -16,9 +17,8 @@ flattenStatements = concatMap k where
 	k statement
 		= pure (onFor . onMultiIf $ statement)
 	onMultiIf = _MultiIfStatement
-		%~ tryApply joinMultiIf
-		. (multiIfElse %~ flattenBody)
-		. (multiIfLeafs . traversed . _2 %~ flattenBody)
+		%~ tryApply joinMultiIf . (k %~ flattenBody)
+		where k = liftA2 (>=>) (multiIfLeafs . traversed . _2) multiIfElse
 	onFor = _ForStatement %~ (forBody %~ flattenBody)
 
 flattenBody :: Body -> Body

@@ -97,7 +97,10 @@ instance Chlor S.Statement D.Statement where
 		S.Assign name expr -> D.Assign <$> nameHook name <*> chlor expr
 		S.Execute name exprs
 			 -> D.Execute
-			<$> (D.ExecuteName <$> chlor name)
+			<$> case name of
+				"readln"  -> return $ D.ExecuteRead undefined
+				"writeln" -> return $ D.ExecuteWrite
+				name -> D.ExecuteName <$> chlor name
 			<*> mapM chlor (map Argument exprs)
 		S.ForCycle name fromExpr toExpr statement
 			-> (D.ForStatement <$>)

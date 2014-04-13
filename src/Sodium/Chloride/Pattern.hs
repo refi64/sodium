@@ -58,10 +58,8 @@ eliminateAssign bodyResults ((indices, statement):statements)
 		touch (VecForStatement forCycle)
 			= VecForStatement <$> vecForBody bodyEliminateAssign forCycle
 		touch (VecMultiIfStatement multiIfBranch)
-			= VecMultiIfStatement <$> k multiIfBranch
-			where k
-				 =  (vecMultiIfLeafs . traversed . _2) bodyEliminateAssign
-				>=> vecMultiIfElse bodyEliminateAssign
+			= VecMultiIfStatement <$> k bodyEliminateAssign multiIfBranch
+			where k = (>=>) <$> vecMultiIfLeafs . traversed . _2 <*> vecMultiIfElse
 		touch (VecBodyStatement body)
 			= VecBodyStatement <$> bodyEliminateAssign body
 		touch _ = mzero
