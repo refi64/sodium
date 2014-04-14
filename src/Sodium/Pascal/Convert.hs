@@ -1,37 +1,37 @@
 {-# LANGUAGE FlexibleInstances #-}
  
-module Sodium.Frontend.Chlorinate (chlorinate) where
+module Sodium.Pascal.Convert (convert) where
 
 import Prelude hiding (mapM)
 import Control.Applicative
 import Control.Monad.Reader hiding (mapM)
+import qualified Data.Map as M
 import Data.Traversable
 import Control.Lens
 -- S for Src, D for Dest
-import qualified Sodium.Frontend.Program as S
+import qualified   Sodium.Pascal.Program as S
 import qualified Sodium.Chloride.Program as D
-import qualified Data.Map as M
 
-chlorinate :: S.Program -> D.Program
-chlorinate = flip runReader [] . chlor
+convert :: S.Program -> D.Program
+convert = flip runReader [] . conv
 
-type ChlorEnv = [S.Name]
+type ConvEnv = [S.Name]
 
-class Chlor s d | s -> d where
-	chlor :: s -> Reader ChlorEnv d
+class Conv s d | s -> d where
+	conv :: s -> Reader ConvEnv d
 
-instance Chlor S.Program D.Program where
-	chlor (S.Program funcs vars body) = do
+instance Conv S.Program D.Program where
+	conv (S.Program funcs vars body) = do
 		clMain <- do
-			clBody <- chlor (VB vars body)
+			clBody <- conv (VB vars body)
 			let clFuncSig = D.FuncSig D.NameMain M.empty D.ClVoid
 			return $ D.Func clFuncSig clBody []
-		clFuncs <- mapM chlor funcs
+		clFuncs <- mapM conv funcs
 		return $ D.Program (clMain:clFuncs)
 
-chlorBodyStatement statement
+convBodyStatement statement
 	 =  review D.bodySingleton
-	<$> chlor statement
+	<$> conv statement
 
 maybeBodySingleton
 	= maybe D.bodyEmpty
@@ -39,45 +39,45 @@ maybeBodySingleton
 
 data VB = VB S.Vars S.Body
 
-instance Chlor VB D.Body where
-	chlor (VB vardecls statements)
+instance Conv VB D.Body where
+	conv (VB vardecls statements)
 		 =  D.Body
-		<$> (M.fromList <$> mapM chlor (splitVarDecls vardecls))
-		<*> mapM chlor statements
+		<$> (M.fromList <$> mapM conv (splitVarDecls vardecls))
+		<*> mapM conv statements
 
 nameHook cs = do
 	names <- ask
 	let wrap = if cs `elem` names then D.NameUnique else id
-	wrap <$> chlor cs
+	wrap <$> conv cs
 
-instance Chlor S.Func D.Func where
-	chlor (S.Func name params pasType vars body)
+instance Conv S.Func D.Func where
+	conv (S.Func name params pasType vars body)
 		= withReaderT (name:) $ do
 			clFuncSig
 				<-  D.FuncSig
-				<$> chlor name
-				<*> (M.fromList <$> mapM chlor (splitVarDecls params))
-				<*> chlor pasType
+				<$> conv name
+				<*> (M.fromList <$> mapM conv (splitVarDecls params))
+				<*> conv pasType
 			clRetName <- nameHook name
 			let enclose = D.bodyVars %~
 				(M.insert clRetName $ clFuncSig ^. D.funcRetType)
-			clBody <- enclose <$> chlor (VB vars body)
+			clBody <- enclose <$> conv (VB vars body)
 			return $ D.Func clFuncSig clBody [D.Access clRetName]
 
-instance Chlor S.Name D.Name where
-	chlor = return . D.Name
+instance Conv S.Name D.Name where
+	conv = return . D.Name
 
 splitVarDecls vardecls
 	= [VarDecl name t | S.VarDecl names t <- vardecls, name <- names]
 
 data VarDecl = VarDecl S.Name S.PasType
 
-instance Chlor VarDecl (D.Name, D.ClType) where
-	chlor (VarDecl name pasType)
-		 = (,) <$> chlor name <*> chlor pasType
+instance Conv VarDecl (D.Name, D.ClType) where
+	conv (VarDecl name pasType)
+		 = (,) <$> conv name <*> conv pasType
 
-instance Chlor S.PasType D.ClType where
-	chlor = \case
+instance Conv S.PasType D.ClType where
+	conv = \case
 		S.PasInteger -> return D.ClInteger
 		S.PasLongInt -> return D.ClInteger
 		S.PasReal    -> return D.ClDouble
@@ -89,36 +89,36 @@ binary op a b = D.Call (D.CallOperator op) [a,b]
 
 multifyIf expr bodyThen bodyElse = D.MultiIfBranch [(expr, bodyThen)] bodyElse
 
-instance Chlor S.Statement D.Statement where
-	chlor = \case
+instance Conv S.Statement D.Statement where
+	conv = \case
 		S.BodyStatement body
 			 -> D.BodyStatement
-			<$> chlor (VB [] body)
-		S.Assign name expr -> D.Assign <$> nameHook name <*> chlor expr
+			<$> conv (VB [] body)
+		S.Assign name expr -> D.Assign <$> nameHook name <*> conv expr
 		S.Execute name exprs
 			 -> D.Execute
 			<$> case name of
 				"readln"  -> return $ D.ExecuteRead undefined
 				"writeln" -> return $ D.ExecuteWrite
-				name -> D.ExecuteName <$> chlor name
-			<*> mapM chlor (map Argument exprs)
+				name -> D.ExecuteName <$> conv name
+			<*> mapM conv (map Argument exprs)
 		S.ForCycle name fromExpr toExpr statement
 			-> (D.ForStatement <$>)
 			 $  D.ForCycle
 			<$> nameHook name
-			<*> (binary D.OpRange <$> chlor fromExpr <*> chlor toExpr)
-			<*> chlorBodyStatement statement
+			<*> (binary D.OpRange <$> conv fromExpr <*> conv toExpr)
+			<*> convBodyStatement statement
 		S.IfBranch expr bodyThen mBodyElse
 			-> (D.MultiIfStatement <$>)
 			 $  multifyIf
-			<$> chlor expr
-			<*> chlorBodyStatement bodyThen
-			<*> (maybeBodySingleton <$> mapM chlor mBodyElse)
+			<$> conv expr
+			<*> convBodyStatement bodyThen
+			<*> (maybeBodySingleton <$> mapM conv mBodyElse)
 		S.CaseBranch expr leafs mBodyElse -> do
 			(clCaseExpr, wrap) <- case expr of
 				S.Access name -> (, id) <$> (D.Access <$> nameHook name)
 				expr -> do
-					clExpr <- chlor expr
+					clExpr <- conv expr
 					let clName = D.Name "__CASE'__" -- generate a name?
 					let clType = undefined -- typeof(expr)
 					let wrap statement
@@ -130,32 +130,32 @@ instance Chlor S.Statement D.Statement where
 			let instRange = \case
 				S.Binary S.OpRange exprFrom exprTo
 					 -> (binary D.OpElem clCaseExpr)
-					<$> (binary D.OpRange <$> chlor exprFrom <*> chlor exprTo)
-				expr -> binary D.OpEquals clCaseExpr <$> chlor expr
+					<$> (binary D.OpRange <$> conv exprFrom <*> conv exprTo)
+				expr -> binary D.OpEquals clCaseExpr <$> conv expr
 			let instLeaf (exprs, body)
 				 =  (,)
 				<$> (foldl1 (binary D.OpOr) <$> mapM instRange exprs)
-				<*> chlorBodyStatement body
+				<*> convBodyStatement body
 			let multiIfBranch
 				 =  D.MultiIfBranch
 				<$> mapM instLeaf leafs
-				<*> (maybeBodySingleton <$> mapM chlor mBodyElse)
+				<*> (maybeBodySingleton <$> mapM conv mBodyElse)
 			wrap <$> (D.MultiIfStatement <$> multiIfBranch)
 
 data Argument = Argument S.Expression
 
-instance Chlor Argument D.Argument where
-	chlor (Argument expr) = case expr of
+instance Conv Argument D.Argument where
+	conv (Argument expr) = case expr of
 		S.Access name -> D.LValue <$> nameHook name
-		expr -> D.RValue <$> chlor expr
+		expr -> D.RValue <$> conv expr
 
-instance Chlor S.Expression D.Expression where
-	chlor = \case
+instance Conv S.Expression D.Expression where
+	conv = \case
 		S.Access name -> D.Access <$> nameHook name
 		S.Call name exprs
 			 -> D.Call
-			<$> (D.CallName <$> chlor name)
-			<*> mapM chlor exprs
+			<$> (D.CallName <$> conv name)
+			<*> mapM conv exprs
 		S.INumber intSection
 			-> return
 			 $ D.Primary
@@ -171,15 +171,15 @@ instance Chlor S.Expression D.Expression where
 		S.Quote cs -> return $ D.Primary (D.Quote cs)
 		S.BTrue  -> return $ D.Primary D.BTrue
 		S.BFalse -> return $ D.Primary D.BFalse
-		S.Binary op x y -> binary <$> chlor op <*> chlor x <*> chlor y
+		S.Binary op x y -> binary <$> conv op <*> conv x <*> conv y
 		S.Unary op x -> case op of
-			S.UOpPlus -> chlor x
+			S.UOpPlus -> conv x
 			S.UOpNegate
 				 -> D.Call (D.CallOperator D.OpNegate)
-				<$> mapM chlor [x]
+				<$> mapM conv [x]
 
-instance Chlor S.Operator D.Operator where
-	chlor = return . \case
+instance Conv S.Operator D.Operator where
+	conv = return . \case
 		S.OpAdd -> D.OpAdd
 		S.OpSubtract -> D.OpSubtract
 		S.OpMultiply -> D.OpMultiply

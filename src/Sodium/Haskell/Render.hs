@@ -1,8 +1,8 @@
-module Sodium.Backend.Render (render) where
+module Sodium.Haskell.Render (render) where
 
 import qualified Data.Char as C
 import qualified Text.PrettyPrint as P
-import Sodium.Backend.Program
+import Sodium.Haskell.Program
 
 vsep = foldr (P.$+$) P.empty
 

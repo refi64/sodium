@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Sodium.Chloride.Vectorizer (vectorize) where
+module Sodium.Chloride.Vectorize (vectorize) where
 
 import Data.List
 import Control.Applicative

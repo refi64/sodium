@@ -9,16 +9,15 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Sodium
-                       Sodium.Frontend.Program
-                       Sodium.Frontend.Parser
-                       Sodium.Frontend.Token
-                       Sodium.Frontend.Tokenizer
-                       Sodium.Frontend.Chlorinate
-                       Sodium.Backend.Program
-                       Sodium.Backend.Dech
-                       Sodium.Backend.Render
+                       Sodium.Pascal.Program
+                       Sodium.Pascal.Parse
+                       Sodium.Pascal.Tokenize
+                       Sodium.Pascal.Convert
+                       Sodium.Haskell.Program
+                       Sodium.Haskell.Convert
+                       Sodium.Haskell.Render
                        Sodium.Chloride.Program
-                       Sodium.Chloride.Vectorizer
+                       Sodium.Chloride.Vectorize
                        Sodium.Chloride.Flatten
                        Sodium.Chloride.IOMagic
                        Sodium.Chloride.Pattern
@@ -29,7 +28,8 @@ library
                        mtl >=2.1 && <2.2,
                        containers >=0.5 && <0.6,
                        pretty >=1.1 && <1.2,
-                       lens >=4.0 && <4.1
+                       lens >=4.0 && <4.1,
+                       profunctors >=4.0 && <4.1
   ghc-options:         -W -O2
   default-extensions:  LambdaCase,
                        TupleSections,

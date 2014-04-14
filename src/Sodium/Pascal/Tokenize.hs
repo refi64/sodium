@@ -1,4 +1,4 @@
-module Sodium.Frontend.Tokenizer (tokenize) where
+module Sodium.Pascal.Tokenize (tokenize, Token(..)) where
 
 import Prelude hiding (head)
 import Control.Applicative
@@ -7,15 +7,57 @@ import Control.Monad.Writer
 import Control.Monad.State.Lazy
 import qualified Data.Char as C
 import Sodium.Tr (head, fallback, expect)
-import Sodium.Frontend.Token
+
+data Token
+	= KwVar
+	| KwBegin
+	| KwEnd
+	| KwFor
+	| KwTo
+	| KwDo
+	| KwFunction
+	| KwTrue
+	| KwFalse
+	| KwAnd
+	| KwOr
+	| KwIf
+	| KwThen
+	| KwElse
+	| KwCase
+	| KwOf
+	| LParen
+	| RParen
+	| Semicolon
+	| Comma
+	| Dot
+	| DoubleDot
+	| Plus
+	| Minus
+	| Assign
+	| Asterisk
+	| Slash
+	| Colon
+	| EqSign
+	| Suck
+	| Blow
+	| Name String
+	| INumber String
+	| FNumber String String
+	| ENumber String String Bool String
+	| Quote String
+	| SodiumSpecial
+	| RBrace
+	| LSqBrace
+	| RSqBrace
+	deriving (Eq, Show)
 
 tokenize :: String -> (String, [Token])
-tokenize = runWriter . tokenizer
+tokenize = runWriter . tokenize'
 
-tokenizer :: String -> Writer [Token] String
-tokenizer cs
+tokenize' :: String -> Writer [Token] String
+tokenize' cs
 	= maybe (return cs) (uncurry k) (runStateT token' cs)
-	where k x cs = tell x >> tokenizer cs
+	where k x cs = tell x >> tokenize' cs
 
 token' :: Alternative f => StateT String Maybe (f Token)
 token' = (pure <$> token) <|> (empty <$ ignored)

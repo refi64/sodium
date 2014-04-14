@@ -1,4 +1,4 @@
-module Sodium.Backend.Program
+module Sodium.Haskell.Program
 	( Name
 	, Program(..)
 	, Def(..)

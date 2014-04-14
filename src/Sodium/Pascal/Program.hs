@@ -1,4 +1,4 @@
-module Sodium.Frontend.Program
+module Sodium.Pascal.Program
 	( Program(..)
 	, Vars
 	, Body

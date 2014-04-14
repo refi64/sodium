@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-module Sodium.Frontend.Parser (parse) where
+module Sodium.Pascal.Parse (parse) where
 
 import Prelude hiding (head)
 import Control.Applicative
@@ -7,28 +6,23 @@ import Control.Monad
 import Data.Maybe (fromMaybe)
 import Control.Monad.State
 import Sodium.Tr (head, before, fallback, expect)
-import qualified Sodium.Frontend.Token as T
-import Sodium.Frontend.Program
-import Control.Exception
-import Data.Typeable
+import qualified Sodium.Pascal.Tokenize as T
+import Sodium.Pascal.Program
 
-data ParserException
-	= ParserException
-	| TokenizerException String
-	deriving (Show, Typeable)
-
-instance Exception ParserException
-
-parse :: (String, [T.Token]) -> Program
-parse (cs, xs) = maybe abort verify (runStateT programTr xs) where
-	isDot (T.Dot:_) = True
-	isDot _ = False
-	verify (program, xs)
-		| isDot xs  = program
-		| otherwise = abort
-	abort
-		| null cs   = throw ParserException
-		| otherwise = throw (TokenizerException cs)
+parse :: String -> Program
+parse cs
+	= either error id
+	$ maybe abort verify (runStateT programTr xs)
+	where
+		(csBad, xs) = T.tokenize cs
+		isDot (T.Dot:_) = True
+		isDot _ = False
+		verify (program, xs)
+			| isDot xs  = Right program
+			| otherwise = abort
+		abort
+			| null csBad = Left "Sodium.Pascal.Parse"
+			| otherwise  = Left "Sodium.Pascal.Tokenize"
 
 -- Useful combinators
 
