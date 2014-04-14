@@ -38,6 +38,8 @@ transformName = \case
 		[ "let"
 		, "show"
 		, "read"
+		, "readLn"
+		, "getLine"
 		, "return"
 		, "foldl"
 		, "map"
@@ -109,9 +111,7 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 			then return $ D.Access "getLine"
 			else do
 				hsType <- conv t
-				return
-					$ D.Binary "<$>" (D.Access "read") (D.Access "getLine")
-					`D.Typed` D.HsIO hsType
+				return $ D.Access "readLn" `D.Typed` D.HsIO hsType
 	conv (retIndices, S.VecExecute S.ExecuteWrite args)
 		| null retIndices
 		= case args of

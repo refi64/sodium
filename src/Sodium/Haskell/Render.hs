@@ -181,7 +181,9 @@ renderExpression (Lambda pats expr)
 
 renderExpression (Typed expr t)
 	= P.hsep
-	[ P.parens $ renderExpression expr
+	[ case renderExpr expr of
+		(r, HLevel) -> r
+		(r, _) -> P.parens r
 	, P.text "::"
 	, renderType t
 	]
