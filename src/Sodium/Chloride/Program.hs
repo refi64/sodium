@@ -54,7 +54,7 @@ data Argument
 
 data Statement
 	= Assign Name Expression
-	| Execute ExecuteName [Argument]
+	| Execute Operator [Argument]
 	| ForStatement ForCycle
 	| MultiIfStatement MultiIfBranch
 	-- TODO: Use statements instead of bodies
@@ -77,7 +77,7 @@ data MultiIfBranch
 
 data Expression
 	= Access Name
-	| Call CallName [Expression]
+	| Call Operator [Expression]
 	| Primary Literal
 	deriving (Show)
 
@@ -95,7 +95,7 @@ data VecArgument
 
 data VecStatement
 	= VecAssign VecExpression
-	| VecExecute ExecuteName [VecArgument]
+	| VecExecute Operator [VecArgument]
 	| VecForStatement VecForCycle
 	| VecMultiIfStatement VecMultiIfBranch
 	| VecBodyStatement VecBody
@@ -118,8 +118,8 @@ data VecMultiIfBranch
 
 data VecExpression
 	= VecAccess Name Index
-	| VecFold CallName [VecExpression] VecExpression
-	| VecCall CallName [VecExpression]
+	| VecFold Operator [VecExpression] VecExpression
+	| VecCall Operator [VecExpression]
 	| VecPrimary Literal
 	deriving (Eq, Show)
 
@@ -151,18 +151,10 @@ data Operator
 	| OpSum
 	| OpAnd'
 	| OpOr'
+	| OpPrintLn
+	| OpReadLn ClType
+	| OpName Name
 	deriving (Eq, Show)
-
-data CallName
-	= CallName Name
-	| CallOperator Operator
-	deriving (Eq, Show)
-
-data ExecuteName
-	= ExecuteName Name
-	| ExecuteWrite
-	| ExecuteRead ClType
-	deriving (Show)
 
 data ClType
 	= ClInteger

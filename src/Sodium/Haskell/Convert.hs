@@ -104,7 +104,7 @@ instance Conv S.VecMultiIfBranch D.Expression where
 
 --TODO: Bind/Let inference
 instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
-	conv (retIndices, S.VecExecute (S.ExecuteRead t) _)
+	conv (retIndices, S.VecExecute (S.OpReadLn t) _)
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
 		<*> if t == S.ClString
@@ -112,10 +112,10 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 			else do
 				hsType <- conv t
 				return $ D.Access "readLn" `D.Typed` D.HsIO hsType
-	conv (retIndices, S.VecExecute S.ExecuteWrite args)
+	conv (retIndices, S.VecExecute S.OpPrintLn args)
 		| null retIndices
 		= case args of
-			[S.VecRValue (S.VecCall (S.CallOperator S.OpShow) [arg])]
+			[S.VecRValue (S.VecCall S.OpShow [arg])]
 				-> D.DoExecute . D.Beta (D.Access "print") <$> conv arg
 			args -> (<$> mapM conv args) $ \case
 				[] -> D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
@@ -244,41 +244,40 @@ instance Conv S.VecExpression D.Expression where
 		S.BFalse -> D.BFalse
 		S.Void   -> D.Tuple []
 	conv (S.VecAccess name i) = D.Access <$> conv (Name name i)
-	conv (S.VecCall callName exprs) = do
+	conv (S.VecCall op exprs) = do
 		hsExprs <- mapM conv exprs
 		let binary hsOp = case hsExprs of
 			hsExpr1:hsExpr2:hsExprs ->
 				return $ beta (hsOp hsExpr1 hsExpr2 : hsExprs)
 			_ -> mzero
 		let unary hsOp = return $ beta (hsOp : hsExprs)
-		case callName of
-			S.CallOperator S.OpRange -> binary D.Range
-			_ -> case convCallName callName of
+		case op of
+			S.OpRange -> binary D.Range
+			_ -> case convOp op of
 				Left unop -> unary (D.Access unop)
 				Right binop -> binary (D.Binary binop)
-	conv (S.VecFold callName exprs range) = do
+	conv (S.VecFold op exprs range) = do
 		hsArgExpr <- D.Tuple <$> mapM conv exprs
 		hsRange <- conv range
-		hsOp <- D.Access <$> either (const mzero) return (convCallName callName)
+		hsOp <- D.Access <$> either (const mzero) return (convOp op)
 		return $ beta [D.Access "foldl", hsOp, hsArgExpr, hsRange]
 
-convCallName = \case
-	S.CallName name -> Left (transformName name)
-	S.CallOperator op -> case op of
-		S.OpNegate -> Left "negate"
-		S.OpShow -> Left "show"
-		S.OpProduct -> Left "product"
-		S.OpSum -> Left "sum"
-		S.OpAnd' -> Left "and"
-		S.OpOr' -> Left "or"
-		S.OpAdd -> Right "+"
-		S.OpSubtract -> Right "-"
-		S.OpMultiply -> Right "*"
-		S.OpDivide -> Right "/"
-		S.OpMore -> Right ">"
-		S.OpLess -> Right "<"
-		S.OpEquals -> Right "=="
-		S.OpAnd -> Right "&&"
-		S.OpOr -> Right "||"
-		S.OpElem -> Right "elem"
-		S.OpRange -> Right "enumFromTo"
+convOp = \case
+	S.OpNegate -> Left "negate"
+	S.OpShow -> Left "show"
+	S.OpProduct -> Left "product"
+	S.OpSum -> Left "sum"
+	S.OpAnd' -> Left "and"
+	S.OpOr' -> Left "or"
+	S.OpAdd -> Right "+"
+	S.OpSubtract -> Right "-"
+	S.OpMultiply -> Right "*"
+	S.OpDivide -> Right "/"
+	S.OpMore -> Right ">"
+	S.OpLess -> Right "<"
+	S.OpEquals -> Right "=="
+	S.OpAnd -> Right "&&"
+	S.OpOr -> Right "||"
+	S.OpElem -> Right "elem"
+	S.OpRange -> Right "enumFromTo"
+	S.OpName name -> Left (transformName name)

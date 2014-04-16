@@ -85,7 +85,7 @@ instance Conv S.PasType D.ClType where
 		S.PasString  -> return D.ClString
 		S.PasType cs -> error "Custom types are not implemented"
 
-binary op a b = D.Call (D.CallOperator op) [a,b]
+binary op a b = D.Call op [a,b]
 
 multifyIf expr bodyThen bodyElse = D.MultiIfBranch [(expr, bodyThen)] bodyElse
 
@@ -98,9 +98,9 @@ instance Conv S.Statement D.Statement where
 		S.Execute name exprs
 			 -> D.Execute
 			<$> case name of
-				"readln"  -> return $ D.ExecuteRead undefined
-				"writeln" -> return $ D.ExecuteWrite
-				name -> D.ExecuteName <$> conv name
+				"readln"  -> return (D.OpReadLn undefined)
+				"writeln" -> return D.OpPrintLn
+				name -> D.OpName <$> conv name
 			<*> mapM conv (map Argument exprs)
 		S.ForCycle name fromExpr toExpr statement
 			-> (D.ForStatement <$>)
@@ -154,7 +154,7 @@ instance Conv S.Expression D.Expression where
 		S.Access name -> D.Access <$> nameHook name
 		S.Call name exprs
 			 -> D.Call
-			<$> (D.CallName <$> conv name)
+			<$> (D.OpName <$> conv name)
 			<*> mapM conv exprs
 		S.INumber intSection
 			-> return
@@ -175,7 +175,7 @@ instance Conv S.Expression D.Expression where
 		S.Unary op x -> case op of
 			S.UOpPlus -> conv x
 			S.UOpNegate
-				 -> D.Call (D.CallOperator D.OpNegate)
+				 -> D.Call D.OpNegate
 				<$> mapM conv [x]
 
 instance Conv S.Operator D.Operator where

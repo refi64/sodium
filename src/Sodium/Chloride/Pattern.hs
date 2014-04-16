@@ -78,10 +78,10 @@ instance SubstituteSingleAccess VecExpression where
 			if name == (name', j)
 				then lift (Once expr)
 				else return (VecAccess name' j)
-		VecCall callName exprs -> do
-			VecCall callName <$> mapM substituteSingleAccess exprs
-		VecFold callName exprs range -> do
-			VecFold callName
+		VecCall op exprs -> do
+			VecCall op <$> mapM substituteSingleAccess exprs
+		VecFold op exprs range -> do
+			VecFold op
 				<$> mapM substituteSingleAccess exprs
 				<*> substituteSingleAccess range
 
@@ -163,13 +163,13 @@ forCycleMatchFold
 	= return (foldMatch op argExprs range)
 forCycleMatchFold _ = mzero
 
-foldMatch (CallOperator OpMultiply) [VecPrimary (INumber "1")] range
-	= VecCall (CallOperator OpProduct) [range]
-foldMatch (CallOperator OpAdd) [VecPrimary (INumber "1")] range
-	= VecCall (CallOperator OpSum) [range]
-foldMatch (CallOperator OpAnd) [VecPrimary BTrue] range
-	= VecCall (CallOperator OpAnd') [range]
-foldMatch (CallOperator OpOr) [VecPrimary BFalse] range
-	= VecCall (CallOperator OpOr') [range]
+foldMatch OpMultiply [VecPrimary (INumber "1")] range
+	= VecCall OpProduct [range]
+foldMatch OpAdd [VecPrimary (INumber "1")] range
+	= VecCall OpSum [range]
+foldMatch OpAnd [VecPrimary BTrue] range
+	= VecCall OpAnd' [range]
+foldMatch OpOr [VecPrimary BFalse] range
+	= VecCall OpOr' [range]
 foldMatch op argExprs range
 	= VecFold op argExprs range

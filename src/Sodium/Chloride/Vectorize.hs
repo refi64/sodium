@@ -80,7 +80,7 @@ vectorizeStatement = \case
 		-- is ReadLn, because only ReadLn is allowed
 		-- to change its LValues
 		let sidenames = case name of
-			ExecuteRead _ -> [sidename | VecLValue sidename _ <- vecArgs]
+			OpReadLn _ -> [sidename | VecLValue sidename _ <- vecArgs]
 			_ -> []
 		return $ (sidenames, VecExecute name vecArgs)
 	ForStatement forCycle -> over _2 VecForStatement <$> do
