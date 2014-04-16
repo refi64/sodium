@@ -96,7 +96,7 @@ instance Conv S.Statement D.Statement where
 			<$> conv (VB [] body)
 		S.Assign name expr -> D.Assign <$> nameHook name <*> conv expr
 		S.Execute name exprs
-			 -> D.Execute
+			 -> D.Execute Nothing
 			<$> case name of
 				"readln"  -> return (D.OpReadLn undefined)
 				"writeln" -> return D.OpPrintLn

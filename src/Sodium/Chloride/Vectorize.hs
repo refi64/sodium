@@ -72,17 +72,13 @@ vectorizeStatement = \case
 	Assign name expr
 		 -> (,) [name]
 		<$> (VecAssign <$> vectorizeExpression expr)
-	Execute name args -> do
+	Execute mres name args -> do
 		vecArgs <- mapM vectorizeArgument args
 		-- TODO: typecheck in order to find out
 		-- what lvalues can actually get changed
-		-- HACK: for now we check if the procedure
-		-- is ReadLn, because only ReadLn is allowed
-		-- to change its LValues
-		let sidenames = case name of
-			OpReadLn _ -> [sidename | VecLValue sidename _ <- vecArgs]
-			_ -> []
-		return $ (sidenames, VecExecute name vecArgs)
+		let sidenames = []
+		let resnames = maybe empty pure mres
+		return $ (resnames ++ sidenames, VecExecute name vecArgs)
 	ForStatement forCycle -> over _2 VecForStatement <$> do
 		vecRange <- vectorizeExpression (forCycle ^. forRange)
 		(changed, vecBody)

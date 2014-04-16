@@ -104,7 +104,7 @@ instance Conv S.VecMultiIfBranch D.Expression where
 
 --TODO: Bind/Let inference
 instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
-	conv (retIndices, S.VecExecute (S.OpReadLn t) _)
+	conv (retIndices, S.VecExecute (S.OpReadLn t) [])
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
 		<*> if t == S.ClString

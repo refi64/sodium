@@ -54,7 +54,7 @@ data Argument
 
 data Statement
 	= Assign Name Expression
-	| Execute Operator [Argument]
+	| Execute (Maybe Name) Operator [Argument]
 	| ForStatement ForCycle
 	| MultiIfStatement MultiIfBranch
 	-- TODO: Use statements instead of bodies
