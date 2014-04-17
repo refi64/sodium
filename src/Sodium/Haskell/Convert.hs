@@ -118,11 +118,12 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 			[S.VecRValue (S.VecCall S.OpShow [arg])]
 				-> D.DoExecute . D.Beta (D.Access "print") <$> conv arg
 			args -> (<$> mapM conv args) $ \case
-				[] -> D.DoExecute $ D.Beta (D.Access "putStrLn") (D.Quote "")
+				[] -> D.DoExecute
+					$ D.Beta (D.Access "putStrLn") (D.Primary (D.Quote ""))
 				hsExprs
 					-> D.DoExecute
 					 $ D.Beta (D.Access "putStrLn")
-					 $ foldl1 (D.Binary "++")
+					 $ foldl1 (\x y -> beta [D.Access "++", x, y])
 					 $ hsExprs
 	conv (retIndices, S.VecAssign expr)
 		 =  D.DoLet
@@ -234,50 +235,40 @@ instance Conv S.VecArgument D.Expression where
 
 instance Conv S.VecExpression D.Expression where
 	conv (S.VecPrimary prim) = return $ case prim of
-		S.Quote  cs -> D.Quote cs
-		S.INumber intSection -> D.INumber intSection
+		S.Quote cs -> D.Primary (D.Quote cs)
+		S.INumber intSection -> D.Primary (D.INumber intSection)
 		S.FNumber intSection fracSection
-			-> D.FNumber intSection fracSection
+			-> D.Primary (D.FNumber intSection fracSection)
 		S.ENumber intSection fracSection eSign eSection
-			-> D.ENumber intSection fracSection eSign eSection
-		S.BTrue  -> D.BTrue
-		S.BFalse -> D.BFalse
+			-> D.Primary (D.ENumber intSection fracSection eSign eSection)
+		S.BTrue  -> D.Access "True"
+		S.BFalse -> D.Access "False"
 		S.Void   -> D.Tuple []
 	conv (S.VecAccess name i) = D.Access <$> conv (Name name i)
 	conv (S.VecCall op exprs) = do
 		hsExprs <- mapM conv exprs
-		let binary hsOp = case hsExprs of
-			hsExpr1:hsExpr2:hsExprs ->
-				return $ beta (hsOp hsExpr1 hsExpr2 : hsExprs)
-			_ -> mzero
-		let unary hsOp = return $ beta (hsOp : hsExprs)
-		case op of
-			S.OpRange -> binary D.Range
-			_ -> case convOp op of
-				Left unop -> unary (D.Access unop)
-				Right binop -> binary (D.Binary binop)
+		return $ beta (D.Access (convOp op) : hsExprs)
 	conv (S.VecFold op exprs range) = do
 		hsArgExpr <- D.Tuple <$> mapM conv exprs
 		hsRange <- conv range
-		hsOp <- D.Access <$> either (const mzero) return (convOp op)
-		return $ beta [D.Access "foldl", hsOp, hsArgExpr, hsRange]
+		return $ beta [D.Access "foldl", D.Access (convOp op), hsArgExpr, hsRange]
 
 convOp = \case
-	S.OpNegate -> Left "negate"
-	S.OpShow -> Left "show"
-	S.OpProduct -> Left "product"
-	S.OpSum -> Left "sum"
-	S.OpAnd' -> Left "and"
-	S.OpOr' -> Left "or"
-	S.OpAdd -> Right "+"
-	S.OpSubtract -> Right "-"
-	S.OpMultiply -> Right "*"
-	S.OpDivide -> Right "/"
-	S.OpMore -> Right ">"
-	S.OpLess -> Right "<"
-	S.OpEquals -> Right "=="
-	S.OpAnd -> Right "&&"
-	S.OpOr -> Right "||"
-	S.OpElem -> Right "elem"
-	S.OpRange -> Right "enumFromTo"
-	S.OpName name -> Left (transformName name)
+	S.OpNegate -> "negate"
+	S.OpShow -> "show"
+	S.OpProduct -> "product"
+	S.OpSum -> "sum"
+	S.OpAnd' -> "and"
+	S.OpOr' -> "or"
+	S.OpAdd -> "+"
+	S.OpSubtract -> "-"
+	S.OpMultiply -> "*"
+	S.OpDivide -> "/"
+	S.OpMore -> ">"
+	S.OpLess -> "<"
+	S.OpEquals -> "=="
+	S.OpAnd -> "&&"
+	S.OpOr -> "||"
+	S.OpElem -> "elem"
+	S.OpRange -> "enumFromTo"
+	S.OpName name -> transformName name

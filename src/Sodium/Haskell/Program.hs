@@ -1,13 +1,4 @@
-module Sodium.Haskell.Program
-	( Name
-	, Program(..)
-	, Def(..)
-	, ValueDef(..)
-	, Expression(..)
-	, DoStatement(..)
-	, HsType(..)
-	, Pattern(..)
-	) where
+module Sodium.Haskell.Program where
 
 type Name = String
 
@@ -30,21 +21,22 @@ data ValueDef
 	deriving (Show)
 
 data Expression
-	= Access Name
+	= Primary Literal
+	| Access Name
 	| Lambda [Pattern] Expression
 	| Beta Expression Expression
-	| Binary Name Expression Expression
 	| Tuple [Expression]
-	| Quote String
-	| INumber String
-	| FNumber String String
-	| ENumber String String Bool String
-	| BTrue | BFalse
 	| Typed Expression HsType
 	| DoExpression [DoStatement]
 	| PureLet [ValueDef] Expression
-	| Range Expression Expression
 	| IfExpression Expression Expression Expression
+	deriving (Show)
+
+data Literal
+	= Quote String
+	| INumber String
+	| FNumber String String
+	| ENumber String String Bool String
 	deriving (Show)
 
 data DoStatement
