@@ -33,27 +33,27 @@ uncurseStatement = onExecute >=> onFor >=> onMultiIf >=> onBody where
 	onMultiIf = _MultiIfStatement (k uncurseBody)
 		where k = (>=>) <$> multiIfLeafs . traversed . _2 <*> multiIfElse
 	onBody = _BodyStatement uncurseBody
-	onExecute = _Execute $ \(mres, name, args) -> case name of
+	onExecute = _Execute $ \(mres, op, args) -> case op of
 		OpReadLn _ -> case (mres, args) of
-			(Nothing, [LValue name])
+			(Nothing, [Access name])
 				 -> lookupType name
 				<&> \t -> (Just name, OpReadLn t, [])
 			_ -> error "IOMagic supports only single-value read operations"
 		OpPrintLn
 			 -> mapM uncurseArgument args
 			<&> \args -> (mres, OpPrintLn, args)
-		_ -> return (mres, name, args)
+		_ -> return (mres, op, args)
 
-uncurseArgument :: M Argument
+uncurseArgument :: M Expression
 uncurseArgument = \case
 	-- TODO: apply `show` only to non-String
 	-- expressions as soon as typecheck is implemented
-	RValue expr -> return $ RValue expr
-	LValue name
+	Access name
 		 -> lookupType name
 		<&> \case
-			ClString -> RValue $ Access name
-			_ -> RValue $ Call OpShow [Access name]
+			ClString -> Access name
+			_ -> Call OpShow [Access name]
+	expr -> return expr
 
 lookupType name = do
 	vars <- ask

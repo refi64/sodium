@@ -47,14 +47,9 @@ data Body
 	, _bodyStatements :: [Statement]
 	} deriving (Show)
 
-data Argument
-	= LValue Name
-	| RValue Expression
-	deriving (Show)
-
 data Statement
 	= Assign Name Expression
-	| Execute (Maybe Name) Operator [Argument]
+	| Execute (Maybe Name) Operator [Expression]
 	| ForStatement ForCycle
 	| MultiIfStatement MultiIfBranch
 	-- TODO: Use statements instead of bodies
@@ -88,14 +83,9 @@ data VecBody
 	, _vecBodyResults :: [VecExpression]
 	} deriving (Show)
 
-data VecArgument
-	= VecLValue Name Index
-	| VecRValue VecExpression
-	deriving (Show)
-
 data VecStatement
 	= VecAssign VecExpression
-	| VecExecute Operator [VecArgument]
+	| VecExecute Operator [VecExpression]
 	| VecForStatement VecForCycle
 	| VecMultiIfStatement VecMultiIfBranch
 	| VecBodyStatement VecBody

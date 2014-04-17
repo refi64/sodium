@@ -85,19 +85,6 @@ instance SubstituteSingleAccess VecExpression where
 				<$> mapM substituteSingleAccess exprs
 				<*> substituteSingleAccess range
 
-instance SubstituteSingleAccess VecArgument where
-	substituteSingleAccess = \case
-		-- This is a safe, but far not the best way to handle
-		-- arguments. For now we simply forbid using the access
-		-- variable in a call, but it needs to be allowed as soon
-		-- as proper side effect management is implemented.
-		VecLValue name' j -> do
-			(name, _) <- ask
-			if name == (name', j)
-				then lift Ambiguous
-				else return (VecLValue name' j)
-		VecRValue expr -> VecRValue <$> substituteSingleAccess expr
-
 instance SubstituteSingleAccess VecStatement where
 	substituteSingleAccess = \case
 		-- It is assumed that every variable is assigned only once,

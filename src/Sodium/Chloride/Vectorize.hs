@@ -59,11 +59,6 @@ vectorizeBody' body = do
 	let vecBody = vecBodyGen (map Access changed)
 	return (changed, vecBody)
 
-vectorizeArgument :: Argument -> Reader Indices VecArgument
-vectorizeArgument = \case
-	LValue name -> VecLValue name <$> lookupIndex name
-	RValue expr -> VecRValue <$> vectorizeExpression expr
-
 vectorizeStatement :: Statement -> Reader Indices ([Name], VecStatement)
 vectorizeStatement = \case
 	BodyStatement body
@@ -73,7 +68,7 @@ vectorizeStatement = \case
 		 -> (,) [name]
 		<$> (VecAssign <$> vectorizeExpression expr)
 	Execute mres name args -> do
-		vecArgs <- mapM vectorizeArgument args
+		vecArgs <- mapM vectorizeExpression args
 		-- TODO: typecheck in order to find out
 		-- what lvalues can actually get changed
 		let sidenames = []

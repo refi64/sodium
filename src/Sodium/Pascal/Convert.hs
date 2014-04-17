@@ -101,7 +101,7 @@ instance Conv S.Statement D.Statement where
 				"readln"  -> return (D.OpReadLn undefined)
 				"writeln" -> return D.OpPrintLn
 				name -> D.OpName <$> conv name
-			<*> mapM conv (map Argument exprs)
+			<*> mapM conv exprs
 		S.ForCycle name fromExpr toExpr statement
 			-> (D.ForStatement <$>)
 			 $  D.ForCycle
@@ -141,13 +141,6 @@ instance Conv S.Statement D.Statement where
 				<$> mapM instLeaf leafs
 				<*> (maybeBodySingleton <$> mapM conv mBodyElse)
 			wrap <$> (D.MultiIfStatement <$> multiIfBranch)
-
-data Argument = Argument S.Expression
-
-instance Conv Argument D.Argument where
-	conv (Argument expr) = case expr of
-		S.Access name -> D.LValue <$> nameHook name
-		expr -> D.RValue <$> conv expr
 
 instance Conv S.Expression D.Expression where
 	conv = \case

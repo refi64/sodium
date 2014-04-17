@@ -115,7 +115,7 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 	conv (retIndices, S.VecExecute S.OpPrintLn args)
 		| null retIndices
 		= case args of
-			[S.VecRValue (S.VecCall S.OpShow [arg])]
+			[S.VecCall S.OpShow [arg]]
 				-> D.DoExecute . D.Beta (D.Access "print") <$> conv arg
 			args -> (<$> mapM conv args) $ \case
 				[] -> D.DoExecute
@@ -227,11 +227,6 @@ newtype IndicesList = IndicesList S.IndicesList
 
 instance Conv IndicesList [D.Name] where
 	conv (IndicesList xs) = mapM (conv . uncurry Name) xs
-
-instance Conv S.VecArgument D.Expression where
-	conv = \case
-		S.VecLValue name i -> D.Access <$> conv (Name name i)
-		S.VecRValue expr -> conv expr
 
 instance Conv S.VecExpression D.Expression where
 	conv (S.VecPrimary prim) = return $ case prim of
