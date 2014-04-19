@@ -33,6 +33,7 @@ transformName = \case
 		-> (if reserved cs
 			then ("_'"++)
 			else id) cs
+	S.NameGen u -> "_'" ++ show u
 	S.NameUnique name -> transformName name ++ "'_"
 	where reserved = flip elem
 		[ "let"
@@ -137,6 +138,10 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
 		<*> conv vecMultiIfBranch
+	conv (retIndices, S.VecBodyStatement vecBody)
+		 =  D.DoBind
+		<$> (D.PatTuple <$> conv (IndicesList retIndices))
+		<*> conv vecBody
 
 instance Conv S.VecFunc D.ValueDef where
 	conv (S.VecFunc (S.FuncSig S.NameMain params S.ClVoid) clBody) = do
@@ -266,4 +271,5 @@ convOp = \case
 	S.OpOr -> "||"
 	S.OpElem -> "elem"
 	S.OpRange -> "enumFromTo"
+	S.OpId -> "id"
 	S.OpName name -> transformName name

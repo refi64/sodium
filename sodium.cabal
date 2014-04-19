@@ -21,8 +21,10 @@ library
                        Sodium.Chloride.Flatten
                        Sodium.Chloride.IOMagic
                        Sodium.Chloride.Pattern
+                       Sodium.Chloride.Side
                        Sodium.Tr
                        Sodium.ApplyOnce
+                       Data.Stack
 
   build-depends:       base >=4.6 && <4.7,
                        mtl >=2.1 && <2.2,

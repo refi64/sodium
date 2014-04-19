@@ -8,6 +8,7 @@ import qualified Data.Map as M
 data Name
 	= Name String
 	| NameMain
+	| NameGen Integer
 	| NameUnique Name
 	deriving (Eq, Ord, Show)
 
@@ -49,6 +50,7 @@ data Body
 
 data Statement
 	= Assign Name Expression
+	| SideCall Name Operator [Expression]
 	| Execute (Maybe Name) Operator [Expression]
 	| ForStatement ForCycle
 	| MultiIfStatement MultiIfBranch
@@ -113,6 +115,9 @@ data VecExpression
 	| VecPrimary Literal
 	deriving (Eq, Show)
 
+vecCall OpId [arg] = arg
+vecCall op args = VecCall op args
+
 data Literal
 	= INumber String
 	| FNumber String String
@@ -143,6 +148,7 @@ data Operator
 	| OpOr'
 	| OpPrintLn
 	| OpReadLn ClType
+	| OpId
 	| OpName Name
 	deriving (Eq, Show)
 

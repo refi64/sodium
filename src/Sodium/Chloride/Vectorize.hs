@@ -11,6 +11,8 @@ import Sodium.Chloride.Program
 import Control.Exception
 import Data.Typeable
 
+import Debug.Trace
+
 data VectorizerException
 	= NoAccess Name
 	| UpdateImmutable Name
@@ -65,8 +67,16 @@ vectorizeStatement = \case
 		 -> over _2 VecBodyStatement
 		<$> vectorizeBody' body
 	Assign name expr
-		 -> (,) [name]
+		 -> trace "WARNING: Assign statements are to be removed!"
+		 $ (,) [name]
 		<$> (VecAssign <$> vectorizeExpression expr)
+	SideCall res op args -> do
+		vecArgs <- mapM vectorizeExpression args
+		-- TODO: typecheck in order to find out
+		-- what lvalues can actually get changed
+		let sidenames = []
+		let resnames = [res]
+		return $ (resnames ++ sidenames, VecAssign (vecCall op vecArgs))
 	Execute mres name args -> do
 		vecArgs <- mapM vectorizeExpression args
 		-- TODO: typecheck in order to find out
@@ -107,7 +117,10 @@ vectorizeExpression :: Expression -> Reader Indices VecExpression
 vectorizeExpression = \case
 	Primary a -> return (VecPrimary a)
 	Access name -> VecAccess name <$> lookupIndex name
-	Call name exprs -> VecCall name <$> mapM vectorizeExpression exprs
+	Call name exprs
+		 -> trace "WARNING: Call expressions are to be removed!"
+		 $  VecCall name
+		<$> mapM vectorizeExpression exprs
 
 readerToState :: (Functor m, Monad m) => ReaderT x m a -> StateT x m a
 readerToState reader = StateT $ \x -> (,x) <$> runReaderT reader x

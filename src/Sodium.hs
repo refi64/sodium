@@ -4,6 +4,7 @@ import Sodium.Chloride.Vectorize (vectorize)
 import Sodium.Chloride.Flatten   (flatten)
 import Sodium.Chloride.IOMagic   (uncurse)
 import Sodium.Chloride.Pattern   (sub)
+import Sodium.Chloride.Side      (side)
 import Sodium.Pascal.Parse   (parse)
 import Sodium.Haskell.Render (render)
 import qualified  Sodium.Pascal.Convert as P (convert)
@@ -14,4 +15,4 @@ translate :: String -> String
 translate = dimap fromPascal toHaskell onChloride where
 	fromPascal = P.convert . parse
 	toHaskell  = render . H.convert
-	onChloride = sub . vectorize . uncurse . flatten
+	onChloride = sub . vectorize . uncurse . flatten . side

@@ -7,14 +7,14 @@ import qualified Data.Map as M
 import Sodium.Chloride.Program
 
 flatten :: Program -> Program
-flatten = programFuncs . traversed . funcBody . bodyStatements %~ flattenStatements
+flatten = programFuncs . traversed . funcBody  %~ flattenBody
 
 flattenStatements :: [Statement] -> [Statement]
-flattenStatements = concatMap k where
-	k (BodyStatement body)
+flattenStatements = concatMap flattenStatement where
+	flattenStatement (BodyStatement body)
 		| M.null (body ^. bodyVars)
 		= flattenStatements (body ^. bodyStatements)
-	k statement
+	flattenStatement statement
 		= pure (onFor . onMultiIf $ statement)
 	onMultiIf = _MultiIfStatement
 		%~ tryApply joinMultiIf . (k %~ flattenBody)
