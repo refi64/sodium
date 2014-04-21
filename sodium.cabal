@@ -21,9 +21,11 @@ library
                        Sodium.Chloride.Program.Vector
                        Sodium.Chloride.Vectorize
                        Sodium.Chloride.Flatten
+                       Sodium.Chloride.JoinMultiIf
                        Sodium.Chloride.IOMagic
                        Sodium.Chloride.Pattern
                        Sodium.Chloride.Side
+                       Sodium.Chloride.Recmap.Scalar
                        Sodium.Tr
                        Sodium.ApplyOnce
                        Data.Stack

@@ -1,27 +1,17 @@
 module Sodium.Chloride.Side (side) where
 
-import Control.Applicative
 import Control.Monad.Writer
-import Control.Lens
 import qualified Data.Map as M
 import Sodium.Chloride.Program.Scalar
+import Sodium.Chloride.Recmap.Scalar
 import Data.Stack
 
 side :: Program -> Program
-side = programFuncs . traversed . funcBody %~ sideBody
-
-sideBody :: Body -> Body
-sideBody = bodyStatements . traversed %~ sideStatement
+side = recmap $ recmapper { recmapStatement = sideStatement }
 
 sideStatement :: Statement -> Statement
-sideStatement = onAssign . onFor . onMultiIf . onBody where
-	onBody = _BodyStatement %~ sideBody
-	onMultiIf = _MultiIfStatement %~ (k %~ sideBody) where
-		k = liftA2 (>=>) (multiIfLeafs . traversed . _2) multiIfElse
-	onFor = _ForStatement %~ (forBody %~ sideBody)
-	onAssign = \case
-		Assign name expr -> BodyStatement (sideAssign name expr)
-		statement -> statement
+sideStatement (Assign name expr) = BodyStatement (sideAssign name expr)
+sideStatement statement = statement
 
 sideAssign :: Name -> Expression -> Body
 sideAssign name expr = Body (M.fromList vardecls) statements where
@@ -38,6 +28,6 @@ sideExpression = \case
 	Call op args -> do
 		eArgs <- mapM sideExpression args
 		name <- pop
-		let vardecl = (name, error "NO TYPE")
+		let vardecl = (name, ClVoid) -- TODO: the real type
 		tell [(vardecl, SideCall name op eArgs)]
 		return (Access name)
