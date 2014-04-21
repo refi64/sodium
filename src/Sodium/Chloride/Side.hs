@@ -4,7 +4,7 @@ import Control.Applicative
 import Control.Monad.Writer
 import Control.Lens
 import qualified Data.Map as M
-import Sodium.Chloride.Program
+import Sodium.Chloride.Program.Scalar
 import Data.Stack
 
 side :: Program -> Program

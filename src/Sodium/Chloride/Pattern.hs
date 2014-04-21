@@ -2,44 +2,44 @@ module Sodium.Chloride.Pattern (sub) where
 
 import Control.Applicative
 import Control.Monad.Reader
-import Control.Lens hiding (Index)
+import Control.Lens hiding (Index, Fold)
 import qualified Data.Map as M
-import Sodium.Chloride.Program
+import Sodium.Chloride.Program.Vector
 import Sodium.ApplyOnce
 
-sub :: VecProgram -> VecProgram
-sub = vecProgramFuncs . traversed %~ subFunc
+sub :: Program -> Program
+sub = programFuncs . traversed %~ subFunc
 
-subFunc :: VecFunc -> VecFunc
+subFunc :: Func -> Func
 subFunc func = maybe func id $ do
 	subBody <- runReaderT
-		(subBody $ func ^. vecFuncBody)
-		(func ^. vecFuncSig . funcParams)
-	return $ vecFuncBody .~ subBody $ func
+		(subBody $ func ^. funcBody)
+		(func ^. funcSig . funcParams)
+	return $ funcBody .~ subBody $ func
 
-subBody :: (Alternative m, MonadPlus m) => VecBody -> ReaderT Vars m VecBody
+subBody :: (Alternative m, MonadPlus m) => Body -> ReaderT Vars m Body
 subBody = bodyEliminateAssign <=< bodyMatchFold <=< bodyEliminateAssign
 
 bodyEliminateAssign body
-	= local (M.union $ body ^. vecBodyVars)
+	= local (M.union $ body ^. bodyVars)
 	$ update body <$> eliminateAssign
-		(body ^. vecBodyResults)
-		(body ^. vecBodyStatements)
+		(body ^. bodyResults)
+		(body ^. bodyStatements)
 	where update body (subResults, subStatements)
-		= vecBodyResults .~ subResults
-		$ vecBodyStatements .~ subStatements
+		= bodyResults .~ subResults
+		$ bodyStatements .~ subStatements
 		$ body
 
 eliminateAssign
 	:: (Alternative m, MonadPlus m)
-	=> [VecExpression]
-	-> [(IndicesList, VecStatement)]
-	-> ReaderT Vars m ([VecExpression], [(IndicesList, VecStatement)])
+	=> [Expression]
+	-> [(IndicesList, Statement)]
+	-> ReaderT Vars m ([Expression], [(IndicesList, Statement)])
 eliminateAssign bodyResults [] = return (bodyResults, [])
 eliminateAssign bodyResults ((indices, statement):statements)
 	= (<|> follow statement)
 	$ case statement of
-		VecAssign expr -> do
+		Assign expr -> do
 			name <- case indices of
 				[name] -> return name
 				_ -> mzero
@@ -55,80 +55,80 @@ eliminateAssign bodyResults ((indices, statement):statements)
 		follow statement
 			 =  over _2 ((indices, statement):)
 			<$> eliminateAssign bodyResults statements
-		touch (VecForStatement forCycle)
-			= VecForStatement <$> vecForBody bodyEliminateAssign forCycle
-		touch (VecMultiIfStatement multiIfBranch)
-			= VecMultiIfStatement <$> k bodyEliminateAssign multiIfBranch
-			where k = (>=>) <$> vecMultiIfLeafs . traversed . _2 <*> vecMultiIfElse
-		touch (VecBodyStatement body)
-			= VecBodyStatement <$> bodyEliminateAssign body
+		touch (ForStatement forCycle)
+			= ForStatement <$> forBody bodyEliminateAssign forCycle
+		touch (MultiIfStatement multiIfBranch)
+			= MultiIfStatement <$> k bodyEliminateAssign multiIfBranch
+			where k = (>=>) <$> multiIfLeafs . traversed . _2 <*> multiIfElse
+		touch (BodyStatement body)
+			= BodyStatement <$> bodyEliminateAssign body
 		touch _ = mzero
 
 
-type SubstituteAccessEnv = ((Name, Index), VecExpression)
+type SubstituteAccessEnv = ((Name, Index), Expression)
 
 class SubstituteSingleAccess a where
 	substituteSingleAccess :: a -> ReaderT SubstituteAccessEnv ApplyOnce a
 
-instance SubstituteSingleAccess VecExpression where
+instance SubstituteSingleAccess Expression where
 	substituteSingleAccess = \case
-		VecPrimary prim -> return $ VecPrimary prim
-		VecAccess name' j -> do
+		Primary prim -> return $ Primary prim
+		Access name' j -> do
 			(name, expr) <- ask
 			if name == (name', j)
 				then lift (Once expr)
-				else return (VecAccess name' j)
-		VecCall op exprs -> do
-			VecCall op <$> mapM substituteSingleAccess exprs
-		VecFold op exprs range -> do
-			VecFold op
+				else return (Access name' j)
+		Call op exprs -> do
+			Call op <$> mapM substituteSingleAccess exprs
+		Fold op exprs range -> do
+			Fold op
 				<$> mapM substituteSingleAccess exprs
 				<*> substituteSingleAccess range
 
-instance SubstituteSingleAccess VecStatement where
+instance SubstituteSingleAccess Statement where
 	substituteSingleAccess = \case
 		-- It is assumed that every variable is assigned only once,
 		-- since the code is vectorized. Therefore it's not the
 		-- variable we are substituting, and no additional checks required.
-		VecAssign expr -> VecAssign <$> substituteSingleAccess expr
-		VecExecute executeName args
-			 -> VecExecute executeName
+		Assign expr -> Assign <$> substituteSingleAccess expr
+		Execute executeName args
+			 -> Execute executeName
 			<$> mapM substituteSingleAccess args
-		VecForStatement forCycle
-			 -> VecForStatement
+		ForStatement forCycle
+			 -> ForStatement
 			<$> substituteSingleAccess forCycle
-		VecMultiIfStatement multiIfBranch
-			 -> VecMultiIfStatement
+		MultiIfStatement multiIfBranch
+			 -> MultiIfStatement
 			<$> substituteSingleAccess multiIfBranch
 		_ -> lift $ Ambiguous
 
-instance SubstituteSingleAccess VecForCycle where
+instance SubstituteSingleAccess ForCycle where
 	substituteSingleAccess
-		 =  vecForRange substituteSingleAccess
-		>=> (vecForArgExprs . traversed) substituteSingleAccess
+		 =  forRange substituteSingleAccess
+		>=> (forArgExprs . traversed) substituteSingleAccess
 		>=> liftA2 (>>=)
-			(shadowedBy . toListOf (vecForArgIndices . traversed . _1))
+			(shadowedBy . toListOf (forArgIndices . traversed . _1))
 			(flip subBody)
 		where subBody shadowed
 			| shadowed  = return
-			| otherwise = vecForBody substituteSingleAccess
+			| otherwise = forBody substituteSingleAccess
 
-instance SubstituteSingleAccess VecMultiIfBranch where
+instance SubstituteSingleAccess MultiIfBranch where
 	substituteSingleAccess
-		 =  (vecMultiIfLeafs . traversed)
+		 =  (multiIfLeafs . traversed)
 		 	(_1 substituteSingleAccess >=> _2 substituteSingleAccess)
-		>=> vecMultiIfElse substituteSingleAccess
+		>=> multiIfElse substituteSingleAccess
 
-instance SubstituteSingleAccess VecBody where
+instance SubstituteSingleAccess Body where
 	substituteSingleAccess
 		= liftA2 (>>=)
-			(shadowedBy . M.keys . view vecBodyVars)
+			(shadowedBy . M.keys . view bodyVars)
 			(flip subBody)
 		where subBody shadowed
 			| shadowed = return
 			| otherwise
-				 =  (vecBodyStatements . traversed . _2) substituteSingleAccess
-				>=> (vecBodyResults . traversed) substituteSingleAccess
+				 =  (bodyStatements . traversed . _2) substituteSingleAccess
+				>=> (bodyResults . traversed) substituteSingleAccess
 
 shadowedBy :: Monad m => [Name] -> ReaderT SubstituteAccessEnv m Bool
 shadowedBy names = do
@@ -136,27 +136,27 @@ shadowedBy names = do
 	return $ fst name `elem` names
 
 bodyMatchFold body
-	= local (M.union $ body ^. vecBodyVars)
-	$ (vecBodyStatements . traversed . _2) statementMatchFold body
+	= local (M.union $ body ^. bodyVars)
+	$ (bodyStatements . traversed . _2) statementMatchFold body
 
-statementMatchFold :: (Functor m, MonadPlus m) => VecStatement -> ReaderT Vars m VecStatement
+statementMatchFold :: (Functor m, MonadPlus m) => Statement -> ReaderT Vars m Statement
 statementMatchFold = \case
-	VecForStatement forCycle -> VecAssign <$> forCycleMatchFold forCycle
+	ForStatement forCycle -> Assign <$> forCycleMatchFold forCycle
 	statement -> return statement
 
 forCycleMatchFold
-	(VecForCycle [(name1, j)] argExprs name2 range (VecBody vars [] [VecCall op args]))
-	| M.null vars && args == [VecAccess name1 j, VecAccess name2 Immutable]
+	(ForCycle [(name1, j)] argExprs name2 range (Body vars [] [Call op args]))
+	| M.null vars && args == [Access name1 j, Access name2 Immutable]
 	= return (foldMatch op argExprs range)
 forCycleMatchFold _ = mzero
 
-foldMatch OpMultiply [VecPrimary (INumber "1")] range
-	= VecCall OpProduct [range]
-foldMatch OpAdd [VecPrimary (INumber "1")] range
-	= VecCall OpSum [range]
-foldMatch OpAnd [VecPrimary BTrue] range
-	= VecCall OpAnd' [range]
-foldMatch OpOr [VecPrimary BFalse] range
-	= VecCall OpOr' [range]
+foldMatch OpMultiply [Primary (INumber "1")] range
+	= Call OpProduct [range]
+foldMatch OpAdd [Primary (INumber "1")] range
+	= Call OpSum [range]
+foldMatch OpAnd [Primary BTrue] range
+	= Call OpAnd' [range]
+foldMatch OpOr [Primary BFalse] range
+	= Call OpOr' [range]
 foldMatch op argExprs range
-	= VecFold op argExprs range
+	= Fold op argExprs range

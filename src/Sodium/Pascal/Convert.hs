@@ -9,8 +9,8 @@ import qualified Data.Map as M
 import Data.Traversable
 import Control.Lens
 -- S for Src, D for Dest
-import qualified   Sodium.Pascal.Program as S
-import qualified Sodium.Chloride.Program as D
+import qualified Sodium.Pascal.Program as S
+import qualified Sodium.Chloride.Program.Scalar as D
 
 convert :: S.Program -> D.Program
 convert = flip runReader [] . conv

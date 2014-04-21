@@ -17,6 +17,8 @@ library
                        Sodium.Haskell.Convert
                        Sodium.Haskell.Render
                        Sodium.Chloride.Program
+                       Sodium.Chloride.Program.Scalar
+                       Sodium.Chloride.Program.Vector
                        Sodium.Chloride.Vectorize
                        Sodium.Chloride.Flatten
                        Sodium.Chloride.IOMagic

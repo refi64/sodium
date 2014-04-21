@@ -6,17 +6,17 @@ import Control.Monad
 import Control.Applicative
 import qualified Data.Map as M
 -- S for Src, D for Dest
-import qualified Sodium.Chloride.Program as S
-import qualified  Sodium.Haskell.Program as D
+import qualified Sodium.Chloride.Program.Vector as S
+import qualified Sodium.Haskell.Program as D
 
-convert :: S.VecProgram -> D.Program
+convert :: S.Program -> D.Program
 convert = maybe (error "Sodium.Haskell.Convert") id . conv
 
 class Conv s d | s -> d where
 	conv :: s -> Maybe d
 
-instance Conv S.VecProgram D.Program where
-	conv (S.VecProgram funcs) = do
+instance Conv S.Program D.Program where
+	conv (S.Program funcs) = do
 		funcDefs <- mapM conv funcs
 		return $ D.Program (map D.Def funcDefs)
 			[ "Control.Monad"
@@ -71,8 +71,8 @@ instance Conv S.ClType D.HsType where
 
 newtype Pure a = Pure a
 
-instance Conv S.VecBody D.Expression where
-	conv (S.VecBody _ statements resultExprs) = do
+instance Conv S.Body D.Expression where
+	conv (S.Body _ statements resultExprs) = do
 		hsStatements <- mapM conv statements
 		hsRetValues <- mapM conv resultExprs
 		let hsStatement
@@ -81,8 +81,8 @@ instance Conv S.VecBody D.Expression where
 			$ D.Tuple hsRetValues
 		return $ D.DoExpression (hsStatements ++ [hsStatement])
 
-instance Conv S.VecForCycle D.Expression where
-	conv (S.VecForCycle argIndices argExprs name exprRange clBody) = do
+instance Conv S.ForCycle D.Expression where
+	conv (S.ForCycle argIndices argExprs name exprRange clBody) = do
 		hsRange <- conv exprRange
 		hsArgExpr <- D.Tuple <$> mapM conv argExprs
 		hsFoldLambda <- conv (FoldLambda argIndices name) <*> conv clBody
@@ -93,8 +93,8 @@ instance Conv S.VecForCycle D.Expression where
 			, hsRange
 			]
 
-instance Conv S.VecMultiIfBranch D.Expression where
-	conv (S.VecMultiIfBranch leafs bodyElse) = do
+instance Conv S.MultiIfBranch D.Expression where
+	conv (S.MultiIfBranch leafs bodyElse) = do
 		let convLeaf (expr, body)
 			 =  D.IfExpression
 			<$> conv expr
@@ -104,8 +104,8 @@ instance Conv S.VecMultiIfBranch D.Expression where
 		return $ foldr ($) hsBodyElse leafGens
 
 --TODO: Bind/Let inference
-instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
-	conv (retIndices, S.VecExecute (S.OpReadLn t) [])
+instance Conv (S.IndicesList, S.Statement) D.DoStatement where
+	conv (retIndices, S.Execute (S.OpReadLn t) [])
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
 		<*> if t == S.ClString
@@ -113,10 +113,10 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 			else do
 				hsType <- conv t
 				return $ D.Access "readLn" `D.Typed` D.HsIO hsType
-	conv (retIndices, S.VecExecute S.OpPrintLn args)
+	conv (retIndices, S.Execute S.OpPrintLn args)
 		| null retIndices
 		= case args of
-			[S.VecCall S.OpShow [arg]]
+			[S.Call S.OpShow [arg]]
 				-> D.DoExecute . D.Beta (D.Access "print") <$> conv arg
 			args -> (<$> mapM conv args) $ \case
 				[] -> D.DoExecute
@@ -126,29 +126,29 @@ instance Conv (S.IndicesList, S.VecStatement) D.DoStatement where
 					 $ D.Beta (D.Access "putStrLn")
 					 $ foldl1 (\x y -> beta [D.Access "++", x, y])
 					 $ hsExprs
-	conv (retIndices, S.VecAssign expr)
+	conv (retIndices, S.Assign expr)
 		 =  D.DoLet
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
 		<*> conv expr
-	conv (retIndices, S.VecForStatement vecForCycle)
+	conv (retIndices, S.ForStatement forCycle)
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
-		<*> conv vecForCycle
-	conv (retIndices, S.VecMultiIfStatement vecMultiIfBranch)
+		<*> conv forCycle
+	conv (retIndices, S.MultiIfStatement multiIfBranch)
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
-		<*> conv vecMultiIfBranch
-	conv (retIndices, S.VecBodyStatement vecBody)
+		<*> conv multiIfBranch
+	conv (retIndices, S.BodyStatement body)
 		 =  D.DoBind
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
-		<*> conv vecBody
+		<*> conv body
 
-instance Conv S.VecFunc D.ValueDef where
-	conv (S.VecFunc (S.FuncSig S.NameMain params S.ClVoid) clBody) = do
+instance Conv S.Func D.ValueDef where
+	conv (S.Func (S.FuncSig S.NameMain params S.ClVoid) clBody) = do
 		guard $ M.null params
 		hsBody <- conv clBody
 		return $ D.ValueDef (D.PatFunc "main" []) hsBody
-	conv (S.VecFunc (S.FuncSig name params _) clBody)
+	conv (S.Func (S.FuncSig name params _) clBody)
 		 =  D.ValueDef (D.PatFunc (transformName name) paramNames)
 		<$> conv (Pure clBody)
 		where paramNames = map transformName (M.keys params)
@@ -161,11 +161,11 @@ instance Conv FoldLambda (D.Expression -> D.Expression) where
 		hsName <- conv (Name name S.Immutable)
 		return $ D.Lambda [D.PatTuple hsNames, D.PatTuple [hsName]]
 
-instance Conv (Pure S.VecBody) D.Expression where
-	conv (Pure (S.VecBody _ statements resultExprs)) = msum
+instance Conv (Pure S.Body) D.Expression where
+	conv (Pure (S.Body _ statements resultExprs)) = msum
 		[ do
 			name1 <- case resultExprs of
-				[S.VecAccess name i] -> return $ Name name i
+				[S.Access name i] -> return $ Name name i
 				_ -> mzero
 			let appToLast f xs = case reverse xs of
 				(x:xs') -> (, reverse xs') <$> f x
@@ -177,10 +177,10 @@ instance Conv (Pure S.VecBody) D.Expression where
 				 =  (,)
 				<$> extractIndex indices
 				<*> case statement of
-					S.VecAssign expr -> conv expr
-					S.VecForStatement vecForCycle -> conv (Pure vecForCycle)
-					S.VecMultiIfStatement vecMultiIfBranch -> conv (Pure vecMultiIfBranch)
-					S.VecBodyStatement vecBody -> conv (Pure vecBody)
+					S.Assign expr -> conv expr
+					S.ForStatement forCycle -> conv (Pure forCycle)
+					S.MultiIfStatement multiIfBranch -> conv (Pure multiIfBranch)
+					S.BodyStatement body -> conv (Pure body)
 					_ -> mzero
 			((name2, hsExpr), statements) <- appToLast convStatement statements
 			guard $ name1 == name2
@@ -192,8 +192,8 @@ instance Conv (Pure S.VecBody) D.Expression where
 			return $ pureLet hsValueDefs (D.Tuple hsRetValues)
 		]
 
-instance Conv (Pure S.VecMultiIfBranch) D.Expression where
-	conv (Pure (S.VecMultiIfBranch leafs bodyElse)) = do
+instance Conv (Pure S.MultiIfBranch) D.Expression where
+	conv (Pure (S.MultiIfBranch leafs bodyElse)) = do
 		let convLeaf (expr, body)
 			 =  D.IfExpression
 			<$> conv expr
@@ -202,8 +202,8 @@ instance Conv (Pure S.VecMultiIfBranch) D.Expression where
 		hsBodyElse <- conv (Pure bodyElse)
 		return $ foldr ($) hsBodyElse leafGens
 
-instance Conv (Pure S.VecForCycle) D.Expression where
-	conv (Pure (S.VecForCycle argIndices argExprs name exprRange clBody)) = do
+instance Conv (Pure S.ForCycle) D.Expression where
+	conv (Pure (S.ForCycle argIndices argExprs name exprRange clBody)) = do
 		hsRange <- conv exprRange
 		hsArgExpr <- D.Tuple <$> mapM conv argExprs
 		hsFoldLambda
@@ -212,15 +212,15 @@ instance Conv (Pure S.VecForCycle) D.Expression where
 		return $ beta [D.Access "foldl", hsFoldLambda, hsArgExpr, hsRange]
 
 
-instance Conv (Pure (S.IndicesList, S.VecStatement)) D.ValueDef where
+instance Conv (Pure (S.IndicesList, S.Statement)) D.ValueDef where
 	conv (Pure (retIndices, statement))
 		 =  D.ValueDef
 		<$> (D.PatTuple <$> conv (IndicesList retIndices))
 		<*> case statement of
-			S.VecAssign expr -> conv expr
-			S.VecForStatement vecForCycle -> conv (Pure vecForCycle)
-			S.VecMultiIfStatement vecMultiIfBranch -> conv (Pure vecMultiIfBranch)
-			S.VecBodyStatement vecBody -> conv (Pure vecBody)
+			S.Assign expr -> conv expr
+			S.ForStatement forCycle -> conv (Pure forCycle)
+			S.MultiIfStatement multiIfBranch -> conv (Pure multiIfBranch)
+			S.BodyStatement body -> conv (Pure body)
 			_ -> mzero
 
 beta = foldl1 D.Beta
@@ -233,8 +233,8 @@ newtype IndicesList = IndicesList S.IndicesList
 instance Conv IndicesList [D.Name] where
 	conv (IndicesList xs) = mapM (conv . uncurry Name) xs
 
-instance Conv S.VecExpression D.Expression where
-	conv (S.VecPrimary prim) = return $ case prim of
+instance Conv S.Expression D.Expression where
+	conv (S.Primary prim) = return $ case prim of
 		S.Quote cs -> D.Primary (D.Quote cs)
 		S.INumber intSection -> D.Primary (D.INumber intSection)
 		S.FNumber intSection fracSection
@@ -244,11 +244,11 @@ instance Conv S.VecExpression D.Expression where
 		S.BTrue  -> D.Access "True"
 		S.BFalse -> D.Access "False"
 		S.Void   -> D.Tuple []
-	conv (S.VecAccess name i) = D.Access <$> conv (Name name i)
-	conv (S.VecCall op exprs) = do
+	conv (S.Access name i) = D.Access <$> conv (Name name i)
+	conv (S.Call op exprs) = do
 		hsExprs <- mapM conv exprs
 		return $ beta (D.Access (convOp op) : hsExprs)
-	conv (S.VecFold op exprs range) = do
+	conv (S.Fold op exprs range) = do
 		hsArgExpr <- D.Tuple <$> mapM conv exprs
 		hsRange <- conv range
 		return $ beta [D.Access "foldl", D.Access (convOp op), hsArgExpr, hsRange]

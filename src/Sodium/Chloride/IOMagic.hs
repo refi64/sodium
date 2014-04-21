@@ -4,7 +4,7 @@ import Control.Applicative
 import Control.Monad.Reader
 import Control.Lens
 import qualified Data.Map as M
-import Sodium.Chloride.Program
+import Sodium.Chloride.Program.Scalar
 
 data Error
 	= NoAccess Name

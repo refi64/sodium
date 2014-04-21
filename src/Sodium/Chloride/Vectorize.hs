@@ -7,7 +7,9 @@ import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import Control.Lens hiding (Index)
 import qualified Data.Map as M
-import Sodium.Chloride.Program
+import Sodium.Chloride.Program.Scalar
+import qualified Sodium.Chloride.Program.Vector as Vec
+
 import Control.Exception
 import Data.Typeable
 
@@ -20,26 +22,26 @@ data VectorizerException
 
 instance Exception VectorizerException
 
-vectorize :: Program -> VecProgram
+vectorize :: Program -> Vec.Program
 vectorize
-	= VecProgram
+	= Vec.Program
 	. map vectorizeFunc
 	. view programFuncs
 
-vectorizeFunc :: Func -> VecFunc
+vectorizeFunc :: Func -> Vec.Func
 vectorizeFunc func
-	= VecFunc (func ^. funcSig)
+	= Vec.Func (func ^. funcSig)
 	$ vecBodyGen (func ^. funcResults)
 	where (_, vecBodyGen)
 		= runReader (vectorizeBody (func ^. funcBody))
-		$ initIndices (Index 0) (func ^. funcSig . funcParams)
+		$ initIndices (Vec.Index 0) (func ^. funcSig . funcParams)
 
-vectorizeBody :: Body -> Reader Indices ([Name], [Expression] -> VecBody)
+vectorizeBody :: Body -> Reader Vec.Indices ([Name], [Expression] -> Vec.Body)
 vectorizeBody body = reader (vectorizeBodyR body)
 
 vectorizeBodyR body closure = (changed, vecBodyGen) where
 	isLocal = flip elem $ M.keys (body ^.bodyVars)
-	indices = initIndices Uninitialized (body ^. bodyVars) `M.union` closure
+	indices = initIndices Vec.Uninitialized (body ^. bodyVars) `M.union` closure
 	vectorizeStatement' statement
 		= _1 (mapM registerIndexUpdate)
 		=<< readerToState (vectorizeStatement statement)
@@ -52,52 +54,52 @@ vectorizeBodyR body closure = (changed, vecBodyGen) where
 		$ M.intersectionWith (/=)
 		indices indices'
 	vecBodyGen results
-		= VecBody (body ^. bodyVars) vecStatements
+		= Vec.Body (body ^. bodyVars) vecStatements
 		$ runReader (mapM vectorizeExpression results) indices'
 
-vectorizeBody' :: Body -> Reader Indices ([Name], VecBody)
+vectorizeBody' :: Body -> Reader Vec.Indices ([Name], Vec.Body)
 vectorizeBody' body = do
 	(changed, vecBodyGen) <- vectorizeBody body
 	let vecBody = vecBodyGen (map Access changed)
 	return (changed, vecBody)
 
-vectorizeStatement :: Statement -> Reader Indices ([Name], VecStatement)
+vectorizeStatement :: Statement -> Reader Vec.Indices ([Name], Vec.Statement)
 vectorizeStatement = \case
 	BodyStatement body
-		 -> over _2 VecBodyStatement
+		 -> over _2 Vec.BodyStatement
 		<$> vectorizeBody' body
 	Assign name expr
 		 -> trace "WARNING: Assign statements are to be removed!"
 		 $ (,) [name]
-		<$> (VecAssign <$> vectorizeExpression expr)
+		<$> (Vec.Assign <$> vectorizeExpression expr)
 	SideCall res op args -> do
 		vecArgs <- mapM vectorizeExpression args
 		-- TODO: typecheck in order to find out
 		-- what lvalues can actually get changed
 		let sidenames = []
 		let resnames = [res]
-		return $ (resnames ++ sidenames, VecAssign (vecCall op vecArgs))
+		return $ (resnames ++ sidenames, Vec.Assign (Vec.call op vecArgs))
 	Execute mres name args -> do
 		vecArgs <- mapM vectorizeExpression args
 		-- TODO: typecheck in order to find out
 		-- what lvalues can actually get changed
 		let sidenames = []
 		let resnames = maybe empty pure mres
-		return $ (resnames ++ sidenames, VecExecute name vecArgs)
-	ForStatement forCycle -> over _2 VecForStatement <$> do
+		return $ (resnames ++ sidenames, Vec.Execute name vecArgs)
+	ForStatement forCycle -> over _2 Vec.ForStatement <$> do
 		vecRange <- vectorizeExpression (forCycle ^. forRange)
 		(changed, vecBody)
-			<- local (M.insert (forCycle ^. forName) Immutable)
+			<- local (M.insert (forCycle ^. forName) Vec.Immutable)
 			 $ vectorizeBody' (forCycle ^. forBody)
 		argIndices <- closedIndices changed
-		let vecForCycle = VecForCycle
+		let vecForCycle = Vec.ForCycle
 			argIndices
-			(uncurry VecAccess `map` argIndices)
+			(uncurry Vec.Access `map` argIndices)
 			(forCycle ^. forName)
 			vecRange
 			vecBody
 		return (changed, vecForCycle)
-	MultiIfStatement multiIfBranch -> over _2 VecMultiIfStatement <$> do
+	MultiIfStatement multiIfBranch -> over _2 Vec.MultiIfStatement <$> do
 		(changedList, vecLeafGens) <- (unzip <$>)
 			$ forM (multiIfBranch ^. multiIfLeafs)
 			$ \(expr, body)
@@ -108,18 +110,18 @@ vectorizeStatement = \case
 			<- vectorizeBody (multiIfBranch ^. multiIfElse)
 		let changed = nub $ changedElse ++ concat changedList
 		let accessChanged = map Access changed
-		let vecMultiIfBranch = VecMultiIfBranch
+		let vecMultiIfBranch = Vec.MultiIfBranch
 			(over _2 ($ accessChanged) `map` vecLeafGens)
 			(vecBodyElseGen accessChanged)
 		return $ (changed, vecMultiIfBranch)
 
-vectorizeExpression :: Expression -> Reader Indices VecExpression
+vectorizeExpression :: Expression -> Reader Vec.Indices Vec.Expression
 vectorizeExpression = \case
-	Primary a -> return (VecPrimary a)
-	Access name -> VecAccess name <$> lookupIndex name
+	Primary a -> return (Vec.Primary a)
+	Access name -> Vec.Access name <$> lookupIndex name
 	Call name exprs
 		 -> trace "WARNING: Call expressions are to be removed!"
-		 $  VecCall name
+		 $  Vec.Call name
 		<$> mapM vectorizeExpression exprs
 
 readerToState :: (Functor m, Monad m) => ReaderT x m a -> StateT x m a
@@ -135,12 +137,12 @@ registerIndexUpdate name = do
 	modify $ M.insert name index'
 	return (name, index')
 	where indexUpdate = \case
-		Index n -> Index (succ n)
-		Uninitialized -> Index 0
-		Immutable -> throw $ UpdateImmutable name
+		Vec.Index n -> Vec.Index (succ n)
+		Vec.Uninitialized -> Vec.Index 0
+		Vec.Immutable -> throw $ UpdateImmutable name
 
-closedIndices :: [Name] -> Reader Indices IndicesList
+closedIndices :: [Name] -> Reader Vec.Indices Vec.IndicesList
 closedIndices = mapM $ \name -> (name,) <$> lookupIndex name
 
-initIndices :: Index -> Vars -> Indices
+initIndices :: Vec.Index -> Vars -> Vec.Indices
 initIndices n = M.map (const n)
