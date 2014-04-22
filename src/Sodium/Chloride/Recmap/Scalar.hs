@@ -1,40 +1,51 @@
 {-# LANGUAGE RankNTypes #-}
 module Sodium.Chloride.Recmap.Scalar
-	( Recmapper (..)
-	, Recmap(..)
+	( Recmapper
+	, Recmap
 	, recmapper
+	, defaultRecmapper
 	, recmap
+	, recmapProgram
+	, recmapFunc
+	, recmapBody
+	, recmapStatement
 	) where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Reader
 import Control.Lens
 import Sodium.Chloride.Program.Scalar
+
+recmapProgram :: Recmapper -> Program -> Program
+recmapProgram rm = programFuncs . traversed %~ recmapFunc rm
+
+recmapFunc :: Recmapper -> Func -> Func
+recmapFunc rm = funcBody %~ recmap rm
 
 data Recmapper = Recmapper
 	{ recmapStatement :: Statement -> Statement
 	, recmapBody :: Body -> Body
 	}
 
-recmapper = Recmapper id id
+defaultRecmapper = Recmapper id id
 
 class Recmap a where
+	recmapper :: (a -> a) -> Recmapper
 	recmapmod :: Recmapper -> (a -> a)
-	recmapmod _ = id
 	recmapdiv :: (forall b. Recmap b => b -> b) -> (a -> a)
 
 recmap :: Recmapper -> (forall a. Recmap a => a -> a)
 recmap rm = recmapmod rm . recmapdiv (recmap rm)
 
-instance Recmap Program where
-	recmapdiv rm = programFuncs . traversed . funcBody %~ rm
-
 instance Recmap Body where
-	recmapmod = recmapBody
+	recmapper rm = defaultRecmapper { recmapBody = rm }
+	recmapmod rm = recmapBody rm
 	recmapdiv rm = bodyStatements . traversed %~ rm
 
 instance Recmap Statement where
-	recmapmod = recmapStatement
+	recmapper rm = defaultRecmapper { recmapStatement = rm }
+	recmapmod rm = recmapStatement rm
 	recmapdiv rm = onMultiIf . onBody . onFor where
 		onMultiIf = _MultiIfStatement %~ (k %~ rm)
 			where k = liftA2 (>=>) (multiIfLeafs . traversed . _2) multiIfElse

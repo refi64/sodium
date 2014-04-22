@@ -6,8 +6,9 @@ import Sodium.Chloride.Program.Scalar
 import Sodium.Chloride.Recmap.Scalar
 
 flatten :: Program -> Program
-flatten = recmap $ recmapper
-	{ recmapBody = bodyStatements %~ concatMap flattenStatement }
+flatten = recmapProgram (recmapper flattenBody)
+
+flattenBody = bodyStatements %~ concatMap flattenStatement
 
 flattenStatement :: Statement -> [Statement]
 flattenStatement (BodyStatement body)
