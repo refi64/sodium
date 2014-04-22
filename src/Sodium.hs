@@ -4,7 +4,7 @@ import Sodium.Chloride.Vectorize (vectorize)
 import Sodium.Chloride.Flatten   (flatten)
 import Sodium.Chloride.JoinMultiIf (joinMultiIf)
 import Sodium.Chloride.IOMagic   (uncurse)
-import Sodium.Chloride.Pattern   (sub)
+import Sodium.Chloride.Inline    (inline)
 import Sodium.Chloride.FoldMatch (foldMatch)
 import Sodium.Chloride.Side      (side)
 import Sodium.Pascal.Parse   (parse)
@@ -18,7 +18,7 @@ translate = dimap fromPascal toHaskell onChloride where
 	fromPascal = P.convert . parse
 	toHaskell  = render . H.convert
 	onChloride = dimap onScalar onVector vectorize
-	onScalar = uncurse . fff (flatten . joinMultiIf)-- . side
-	onVector = fff (sub . foldMatch)
+	onScalar = uncurse . fff (flatten . joinMultiIf) . side
+	onVector = fff (inline . foldMatch)
 
 fff f = (!!42) . iterate f

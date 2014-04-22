@@ -1,69 +1,41 @@
-module Sodium.Chloride.Pattern (sub) where
+module Sodium.Chloride.Inline (inline) where
 
 import Control.Applicative
 import Control.Monad.Reader
 import Control.Lens hiding (Index, Fold)
 import qualified Data.Map as M
 import Sodium.Chloride.Program.Vector
+import Sodium.Chloride.Recmap.Vector
 import Sodium.ApplyOnce
 
-sub :: Program -> Program
-sub = programFuncs . traversed %~ subFunc
+inline :: Program -> Program
+inline = recmapProgram' (recmapper' inlineBody)
 
-subFunc :: Func -> Func
-subFunc func = maybe func id $ do
-	subBody <- runReaderT
-		(subBody $ func ^. funcBody)
-		(func ^. funcSig . funcParams)
-	return $ funcBody .~ subBody $ func
-
-subBody :: (Alternative m, MonadPlus m) => Body -> ReaderT Vars m Body
-subBody = bodyEliminateAssign
-
-bodyEliminateAssign body
-	= local (M.union $ body ^. bodyVars)
-	$ update body <$> eliminateAssign
-		(body ^. bodyResults)
-		(body ^. bodyStatements)
+inlineBody body
+	= update body $ eliminateAssign
+		(body ^. bodyResults, body ^. bodyStatements)
 	where update body (subResults, subStatements)
 		= bodyResults .~ subResults
 		$ bodyStatements .~ subStatements
 		$ body
 
 eliminateAssign
-	:: (Alternative m, MonadPlus m)
-	=> [Expression]
-	-> [(IndicesList, Statement)]
-	-> ReaderT Vars m ([Expression], [(IndicesList, Statement)])
-eliminateAssign bodyResults [] = return (bodyResults, [])
-eliminateAssign bodyResults ((indices, statement):statements)
-	= (<|> follow statement)
-	$ case statement of
-		Assign expr -> do
-			name <- case indices of
-				[name] -> return name
-				_ -> mzero
-			let subSingle = liftA2 (,)
-				(mapM substituteSingleAccess bodyResults)
-				(mapM (_2 substituteSingleAccess) statements)
-			case runReaderT subSingle (name, expr) of
-				Once subPair -> uncurry eliminateAssign subPair
-				None subPair -> uncurry eliminateAssign subPair
-				Ambiguous -> mzero
-		statement -> (touch >=> follow) statement
-	where
-		follow statement
-			 =  over _2 ((indices, statement):)
-			<$> eliminateAssign bodyResults statements
-		touch (ForStatement forCycle)
-			= ForStatement <$> forBody bodyEliminateAssign forCycle
-		touch (MultiIfStatement multiIfBranch)
-			= MultiIfStatement <$> k bodyEliminateAssign multiIfBranch
-			where k = (>=>) <$> multiIfLeafs . traversed . _2 <*> multiIfElse
-		touch (BodyStatement body)
-			= BodyStatement <$> bodyEliminateAssign body
-		touch _ = mzero
-
+	:: ([Expression], [(IndicesList, Statement)])
+	-> ([Expression], [(IndicesList, Statement)])
+eliminateAssign (bodyResults, (statement:statements))
+	= maybe follow id $ do
+		([name], Assign expr) <- Just statement
+		let subSingle = liftA2 (,)
+			(mapM substituteSingleAccess bodyResults)
+			(mapM (_2 substituteSingleAccess) statements)
+		case runReaderT subSingle (name, expr) of
+			Once bodyPair -> Just (eliminateAssign bodyPair)
+			None bodyPair -> Just (eliminateAssign bodyPair)
+			Ambiguous -> Nothing
+	where follow
+		= over _2 (statement:)
+		$ eliminateAssign (bodyResults, statements)
+eliminateAssign bodyPair = bodyPair
 
 type SubstituteAccessEnv = ((Name, Index), Expression)
 
@@ -100,7 +72,9 @@ instance SubstituteSingleAccess Statement where
 		MultiIfStatement multiIfBranch
 			 -> MultiIfStatement
 			<$> substituteSingleAccess multiIfBranch
-		_ -> lift $ Ambiguous
+		BodyStatement body
+			 -> BodyStatement
+			<$> substituteSingleAccess body
 
 instance SubstituteSingleAccess ForCycle where
 	substituteSingleAccess

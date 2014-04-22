@@ -23,7 +23,7 @@ library
                        Sodium.Chloride.Flatten
                        Sodium.Chloride.JoinMultiIf
                        Sodium.Chloride.IOMagic
-                       Sodium.Chloride.Pattern
+                       Sodium.Chloride.Inline
                        Sodium.Chloride.FoldMatch
                        Sodium.Chloride.Side
                        Sodium.Chloride.Recmap.Scalar
