@@ -11,6 +11,7 @@ module Sodium.Chloride.Recmap.Scalar
 	, recmapFunc
 	, recmapBody
 	, recmapStatement
+	, RecmapEnv
 	) where
 
 import Control.Applicative
