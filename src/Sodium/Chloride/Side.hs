@@ -7,7 +7,7 @@ import Sodium.Chloride.Recmap.Scalar
 import Data.Stack
 
 side :: Program -> Program
-side = recmapProgram (recmapper sideStatement)
+side = recmapProgram' (recmapper' sideStatement)
 
 sideStatement :: Statement -> Statement
 sideStatement (Assign name expr) = BodyStatement (sideAssign name expr)

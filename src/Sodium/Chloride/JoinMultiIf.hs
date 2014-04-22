@@ -5,7 +5,7 @@ import Sodium.Chloride.Program.Scalar
 import Sodium.Chloride.Recmap.Scalar
 
 joinMultiIf :: Program -> Program
-joinMultiIf = recmapProgram (recmapper joinMultiIfStatement)
+joinMultiIf = recmapProgram' (recmapper' joinMultiIfStatement)
 
 joinMultiIfStatement
 	= _MultiIfStatement %~ tryApply joinMultiIfBranch
