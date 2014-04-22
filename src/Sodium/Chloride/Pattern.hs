@@ -18,7 +18,7 @@ subFunc func = maybe func id $ do
 	return $ funcBody .~ subBody $ func
 
 subBody :: (Alternative m, MonadPlus m) => Body -> ReaderT Vars m Body
-subBody = bodyEliminateAssign <=< bodyMatchFold <=< bodyEliminateAssign
+subBody = bodyEliminateAssign
 
 bodyEliminateAssign body
 	= local (M.union $ body ^. bodyVars)
@@ -134,29 +134,3 @@ shadowedBy :: Monad m => [Name] -> ReaderT SubstituteAccessEnv m Bool
 shadowedBy names = do
 	(name, _) <- ask
 	return $ fst name `elem` names
-
-bodyMatchFold body
-	= local (M.union $ body ^. bodyVars)
-	$ (bodyStatements . traversed . _2) statementMatchFold body
-
-statementMatchFold :: (Functor m, MonadPlus m) => Statement -> ReaderT Vars m Statement
-statementMatchFold = \case
-	ForStatement forCycle -> Assign <$> forCycleMatchFold forCycle
-	statement -> return statement
-
-forCycleMatchFold
-	(ForCycle [(name1, j)] argExprs name2 range (Body vars [] [Call op args]))
-	| M.null vars && args == [Access name1 j, Access name2 Immutable]
-	= return (foldMatch op argExprs range)
-forCycleMatchFold _ = mzero
-
-foldMatch OpMultiply [Primary (INumber "1")] range
-	= Call OpProduct [range]
-foldMatch OpAdd [Primary (INumber "1")] range
-	= Call OpSum [range]
-foldMatch OpAnd [Primary BTrue] range
-	= Call OpAnd' [range]
-foldMatch OpOr [Primary BFalse] range
-	= Call OpOr' [range]
-foldMatch op argExprs range
-	= Fold op argExprs range

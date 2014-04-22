@@ -78,3 +78,5 @@ makeLenses ''Body
 makeLenses ''ForCycle
 makeLenses ''MultiIfBranch
 makeLenses ''Program
+
+makePrisms ''Statement

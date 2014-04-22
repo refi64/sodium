@@ -24,8 +24,10 @@ library
                        Sodium.Chloride.JoinMultiIf
                        Sodium.Chloride.IOMagic
                        Sodium.Chloride.Pattern
+                       Sodium.Chloride.FoldMatch
                        Sodium.Chloride.Side
                        Sodium.Chloride.Recmap.Scalar
+                       Sodium.Chloride.Recmap.Vector
                        Sodium.Tr
                        Sodium.ApplyOnce
                        Data.Stack
