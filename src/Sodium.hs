@@ -16,5 +16,8 @@ translate :: String -> String
 translate = dimap fromPascal toHaskell onChloride where
 	fromPascal = P.convert . parse
 	toHaskell  = render . H.convert
-	onChloride = fff sub . vectorize . uncurse . flatten . joinMultiIf . side
-	fff f = (!!42) . iterate f
+	onChloride = dimap onScalar onVector vectorize
+	onScalar = uncurse . fff (flatten . joinMultiIf) . side
+	onVector = fff sub
+
+fff f = (!!42) . iterate f
